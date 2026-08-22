@@ -48,7 +48,7 @@ img {
 /* «весільний альбом» */
 
 .hero__subtitle {
-    margin: 0 0 28px;
+    margin: 141px 0px 37px;
 
     color: #1a1a1a;
     font-family: "Montserrat", sans-serif;
@@ -80,7 +80,7 @@ img {
 /* Дата */
 
 .hero__date {
-    margin-top: 22px;
+    margin-top: 61px;
 
     color: #1a1a1a;
     font-family: "Montserrat", sans-serif;
@@ -101,7 +101,8 @@ img {
 
     width: 270px;
     min-height: 48px;
-    margin-top: 66px;
+    margin-top: 65px;
+    margin-bottom: 219px;
 
     color: #e6e6e6;
     background-color: #3b3b3b;
@@ -114,4 +115,24 @@ img {
     letter-spacing: 0;
     text-align: center;
     text-decoration: none;
+}
+
+.hero__decoration {
+    position: absolute;
+    display: block;
+    height: auto;
+    object-fit: contain;
+    pointer-events: none;
+}
+
+.hero__decoration--top {
+    top: 10px;
+    left: 10px;
+    width: 256px;
+}
+
+.hero__decoration--bottom {
+    right: 10px;
+    bottom: 10px;
+    width: 148px;
 }
