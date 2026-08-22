@@ -10,6 +10,7 @@
 </head>
 
 <body>
+
     <main>
         <section class="hero">
             <img
@@ -30,9 +31,13 @@
                     03/10/2026
                 </time>
 
-                <a class="hero__button" href="#upload">
+                <button
+                    class="hero__button"
+                    id="open-upload-modal"
+                    type="button"
+                >
                     додати фото
-                </a>
+                </button>
             </div>
 
             <img
@@ -42,5 +47,38 @@
             >
         </section>
     </main>
+
+
+    <div class="modal" id="upload-modal" aria-hidden="true">
+
+        <div class="modal__overlay" data-close-modal></div>
+
+        <section
+            class="modal__sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="upload-modal-title"
+            >
+            
+            <button
+                class="modal__close"
+                type="button"
+                aria-label="Закрити вікно"
+                data-close-modal
+            >
+                &times;
+            </button>
+
+            <h2 class="modal__title" id="upload-modal-title">
+                Додати фото
+            </h2>
+
+            <div class="modal__content">
+                <p>Тут пізніше буде форма завантаження фотографії.</p>
+            </div>
+        </section>
+    </div>
+
+<script src="script.js"></script>
 </body>
 </html>
