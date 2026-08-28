@@ -153,6 +153,10 @@ img {
     display: block;
 }
 
+body.modal-open {
+    overflow: hidden;
+}
+
 /* Затемнення сторінки */
 
 .modal__overlay {
@@ -220,4 +224,236 @@ img {
 
 .modal__content {
     margin-top: 32px;
+}
+
+/* Форма завантаження */
+
+.upload-form {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.upload-form__field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.upload-form__field.is-hidden {
+    display: none;
+}
+
+.upload-form__label {
+    font-family: "Montserrat", sans-serif;
+    font-size: 14px;
+    color: #1a1a1a;
+}
+
+.upload-form__input {
+    width: 100%;
+    height: 48px;
+    padding: 0 16px;
+
+    color: #1a1a1a;
+    background-color: #ffffff;
+    border: 1px solid #b9b1ab;
+    border-radius: 8px;
+
+    font-family: "Montserrat", sans-serif;
+    font-size: 16px;
+}
+
+.upload-form__input:focus {
+    border-color: #1a1a1a;
+    outline: 2px solid rgb(26 26 26 / 15%);
+}
+
+.anonymous-switch {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.anonymous-switch__input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+.anonymous-switch__control {
+    position: relative;
+
+    width: 48px;
+    height: 28px;
+
+    background-color: #b9b1ab;
+    border-radius: 999px;
+
+    transition: background-color 200ms ease;
+}
+
+.anonymous-switch__control::after {
+    content: "";
+
+    position: absolute;
+    top: 3px;
+    left: 3px;
+
+    width: 22px;
+    height: 22px;
+
+    background-color: #ffffff;
+    border-radius: 50%;
+
+    transition: transform 200ms ease;
+}
+
+.anonymous-switch__input:checked
+    + .anonymous-switch__control {
+    background-color: #3b3b3b;
+}
+
+.anonymous-switch__input:checked
+    + .anonymous-switch__control::after {
+    transform: translateX(20px);
+}
+
+.anonymous-switch__input:focus-visible
+    + .anonymous-switch__control {
+    outline: 2px solid #1a1a1a;
+    outline-offset: 3px;
+}
+
+.anonymous-switch__text {
+    font-family: "Montserrat", sans-serif;
+    font-size: 14px;
+}
+
+/* Зона завантаження фото */
+
+.photo-picker__input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+.photo-picker__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+
+    min-height: 180px;
+    padding: 24px;
+
+    background-color: rgb(255 255 255 / 55%);
+    border: 1px dashed #8e8781;
+    border-radius: 16px;
+
+    cursor: pointer;
+}
+
+.photo-picker__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 64px;
+    height: 64px;
+
+    color: #3b3b3b;
+    border: 1px solid #3b3b3b;
+    border-radius: 12px;
+
+    font-size: 32px;
+    line-height: 1;
+}
+
+.photo-picker__text {
+    font-family: "Montserrat", sans-serif;
+    font-size: 14px;
+}
+
+.photo-picker.has-photos .photo-picker__empty {
+    display: none;
+}
+
+.photo-picker__preview {
+    display: none;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.photo-picker.has-photos .photo-picker__preview {
+    display: grid;
+}
+
+.photo-picker__item,
+.photo-picker__add {
+    position: relative;
+    overflow: hidden;
+
+    width: 100%;
+    aspect-ratio: 1;
+
+    border-radius: 10px;
+}
+
+.photo-picker__image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.photo-picker__add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    color: #3b3b3b;
+    background-color: rgb(255 255 255 / 55%);
+    border: 1px dashed #8e8781;
+
+    font-size: 30px;
+    cursor: pointer;
+}
+
+.photo-picker__more .photo-picker__image {
+    filter: blur(3px);
+    transform: scale(1.08);
+}
+
+.photo-picker__count {
+    position: absolute;
+    inset: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    color: #ffffff;
+    background-color: rgb(0 0 0 / 35%);
+
+    font-family: "Montserrat", sans-serif;
+    font-size: 20px;
+    font-weight: 500;
+}
+
+.upload-form__submit {
+    min-height: 48px;
+
+    color: #e6e6e6;
+    background-color: #3b3b3b;
+    border: 0;
+
+    font-family: "Montserrat", sans-serif;
+    font-size: 18px;
+    font-style: italic;
+
+    cursor: pointer;
 }

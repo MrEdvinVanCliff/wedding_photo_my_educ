@@ -59,7 +59,7 @@
             aria-modal="true"
             aria-labelledby="upload-modal-title"
             >
-            
+
             <button
                 class="modal__close"
                 type="button"
@@ -74,9 +74,65 @@
             </h2>
 
             <div class="modal__content">
-                <p>Тут пізніше буде форма завантаження фотографії.</p>
+
+                <form class="upload-form" id="upload-form">
+                    <div class="upload-form__field" id="name-field">
+                        <label class="upload-form__label" for="guest-name">
+                            Ваше ім’я
+                        </label>
+
+                        <input
+                            class="upload-form__input"
+                            id="guest-name"
+                            name="guestName"
+                            type="text"
+                            placeholder="Введіть ваше ім’я"
+                            autocomplete="name"
+                        >
+                    </div>
+
+                    <label class="anonymous-switch">
+                        <input
+                            class="anonymous-switch__input"
+                            id="anonymous-checkbox"
+                            name="anonymous"
+                            type="checkbox"
+                        >
+
+                        <span class="anonymous-switch__control"></span>
+                        <span class="anonymous-switch__text">Додати анонімно</span>
+                    </label>
+
+                    <div class="photo-picker">
+                        <input
+                            class="photo-picker__input"
+                            id="photo-input"
+                            name="photos"
+                            type="file"
+                            accept="image/*"
+                            multiple
+                        >
+
+                        <label class="photo-picker__empty" for="photo-input">
+                            <span class="photo-picker__icon">＋</span>
+                            <span class="photo-picker__text">Додати фотографії</span>
+                        </label>
+
+                        <div
+                            class="photo-picker__preview"
+                            id="photo-preview"
+                            aria-live="polite"
+                        ></div>
+                    </div>
+
+                    <button class="upload-form__submit" type="submit">
+                        Завантажити
+                    </button>
+                </form>
             </div>
+        
         </section>
+    
     </div>
 
 <script src="script.js"></script>
