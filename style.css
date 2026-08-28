@@ -1,4 +1,5 @@
-@import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@1,200&family=Monsieur+La+Doulaise&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,700;1,200;1,700&family=Monsieur+La+Doulaise&display=swap");
+
 
 * {
     box-sizing: border-box;
@@ -217,7 +218,9 @@ body.modal-open {
     margin: 0;
 
     font-family: "Montserrat", sans-serif;
-    font-size: 28px;
+    font-weight: 700;
+    font-style: normal;
+    font-size: 20px;
     line-height: 1.2;
     text-align: center;
 }
@@ -246,7 +249,9 @@ body.modal-open {
 
 .upload-form__label {
     font-family: "Montserrat", sans-serif;
-    font-size: 14px;
+    font-weight: 1200;
+    font-style: italic;
+    font-size: 20px;
     color: #1a1a1a;
 }
 
@@ -256,17 +261,28 @@ body.modal-open {
     padding: 0 16px;
 
     color: #1a1a1a;
-    background-color: #ffffff;
-    border: 1px solid #b9b1ab;
-    border-radius: 8px;
+    background-color: rgb(172 127 94);
+    border: 1px solid rgb(172 127 94);
+    border-radius: 20px;
 
     font-family: "Montserrat", sans-serif;
-    font-size: 16px;
+    font-weight: 700;
+    font-style: normal;
+    font-size: 20px;
 }
 
 .upload-form__input:focus {
     border-color: #1a1a1a;
     outline: 2px solid rgb(26 26 26 / 15%);
+}
+
+.upload-form__input::placeholder {
+    color: #1b1b1a;
+    opacity: 1;
+    font-family: "Montserrat", sans-serif;
+    font-weight: 1200;
+    font-style: italic;
+    font-size: 20px;
 }
 
 .anonymous-switch {
@@ -329,7 +345,9 @@ body.modal-open {
 
 .anonymous-switch__text {
     font-family: "Montserrat", sans-serif;
-    font-size: 14px;
+    font-weight: 700;
+    font-style: normal;
+    font-size: 20px;
 }
 
 /* Зона завантаження фото */
@@ -351,12 +369,13 @@ body.modal-open {
     min-height: 180px;
     padding: 24px;
 
-    background-color: rgb(255 255 255 / 55%);
-    border: 1px dashed #8e8781;
-    border-radius: 16px;
+  
+    border: 3px dashed rgb(186 171 154);
+    border-radius: 34px;
 
     cursor: pointer;
 }
+
 
 .photo-picker__icon {
     display: flex;
@@ -366,17 +385,27 @@ body.modal-open {
     width: 64px;
     height: 64px;
 
-    color: #3b3b3b;
-    border: 1px solid #3b3b3b;
-    border-radius: 12px;
+    color: rgb(186 171 154);
+    border: 2px dashed rgb(186 171 154);
+    border-radius: 16px;
+
 
     font-size: 32px;
     line-height: 1;
 }
 
-.photo-picker__text {
+.photo-picker__text_title {
     font-family: "Montserrat", sans-serif;
-    font-size: 14px;
+    font-weight: 700;
+    font-style: italic;
+    font-size: 18px;
+}
+
+.photo-picker__text_subtitle {
+    font-family: "Montserrat", sans-serif;
+    font-weight: 1700;
+    font-style: italic;
+    font-size: 16px;
 }
 
 .photo-picker.has-photos .photo-picker__empty {
@@ -417,7 +446,7 @@ body.modal-open {
 
     color: #3b3b3b;
     background-color: rgb(255 255 255 / 55%);
-    border: 1px dashed #8e8781;
+    border: 1px dashed rgb(186 171 154);
 
     font-size: 30px;
     cursor: pointer;
@@ -452,8 +481,9 @@ body.modal-open {
     border: 0;
 
     font-family: "Montserrat", sans-serif;
-    font-size: 18px;
-    font-style: italic;
+    font-weight: 700;
+    font-size: 20px;
+    font-style: normal;
 
     cursor: pointer;
 }
