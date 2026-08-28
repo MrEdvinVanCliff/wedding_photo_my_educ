@@ -21,3 +21,24 @@ openModalButton.addEventListener("click", openModal);
 closeModalButtons.forEach((button) => {
     button.addEventListener("click", closeModal);
 });
+
+// приховування імені
+const anonymousCheckbox =
+    document.querySelector("#anonymous-checkbox");
+
+const nameField =
+    document.querySelector("#name-field");
+
+const nameInput =
+    document.querySelector("#guest-name");
+
+anonymousCheckbox.addEventListener("change", () => {
+    const isAnonymous = anonymousCheckbox.checked;
+
+    nameField.classList.toggle("is-hidden", isAnonymous);
+    nameInput.disabled = isAnonymous;
+
+    if (isAnonymous) {
+        nameInput.value = "";
+    }
+});

@@ -76,33 +76,8 @@
             <div class="modal__content">
 
                 <form class="upload-form" id="upload-form">
-                    <div class="upload-form__field" id="name-field">
-                        <label class="upload-form__label" for="guest-name">
-                            Ваше ім’я
-                        </label>
 
-                        <input
-                            class="upload-form__input"
-                            id="guest-name"
-                            name="guestName"
-                            type="text"
-                            placeholder="Введіть ваше ім’я"
-                            autocomplete="name"
-                        >
-                    </div>
-
-                    <label class="anonymous-switch">
-                        <input
-                            class="anonymous-switch__input"
-                            id="anonymous-checkbox"
-                            name="anonymous"
-                            type="checkbox"
-                        >
-
-                        <span class="anonymous-switch__control"></span>
-                        <span class="anonymous-switch__text">Додати анонімно</span>
-                    </label>
-
+                    
                     <div class="photo-picker">
                         <input
                             class="photo-picker__input"
@@ -124,6 +99,36 @@
                             aria-live="polite"
                         ></div>
                     </div>
+                    
+                    
+                    <label class="anonymous-switch">
+                        <input
+                            class="anonymous-switch__input"
+                            id="anonymous-checkbox"
+                            name="anonymous"
+                            type="checkbox"
+                        >
+
+                        <span class="anonymous-switch__control"></span>
+                        <span class="anonymous-switch__text">Додати анонімно</span>
+                    </label>
+
+
+                    <div class="upload-form__field" id="name-field">
+                        <label class="upload-form__label" for="guest-name">
+                            Ваше ім’я
+                        </label>
+
+                        <input
+                            class="upload-form__input"
+                            id="guest-name"
+                            name="guestName"
+                            type="text"
+                            placeholder="Введіть ваше ім’я"
+                            autocomplete="name"
+                        >
+                    </div>
+
 
                     <button class="upload-form__submit" type="submit">
                         Завантажити
