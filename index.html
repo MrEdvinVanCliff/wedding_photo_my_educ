@@ -89,8 +89,12 @@
                         >
 
                         <label class="photo-picker__empty" for="photo-input">
-                            <span class="photo-picker__icon">＋</span>
-                            <span class="photo-picker__text_title">натисність що б додати фото</span>
+                            <img
+                            class="photo-picker__icon_empty"
+                            src="assets/empty_photo.png"
+                            alt=""
+                            >
+                            <span class="photo-picker__text_title">натисність що б дodати фото</span>
                             <span class="photo-picker__text_subtitle">максимальний розмір 3Gb</span>
                         </label>
 
@@ -116,9 +120,6 @@
 
 
                     <div class="upload-form__field" id="name-field">
-                        <label class="upload-form__label" for="guest-name">
-                            Ваше ім’я
-                        </label>
 
                         <input
                             class="upload-form__input"
@@ -129,6 +130,7 @@
                             autocomplete="name"
                         >
                     </div>
+
 
 
                     <button class="upload-form__submit" type="submit">
