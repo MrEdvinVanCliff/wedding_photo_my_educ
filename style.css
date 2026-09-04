@@ -1,17 +1,11 @@
 @import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,700;1,200;1,700&family=Monsieur+La+Doulaise&display=swap");
 
-
-/*
-
-    font-family: "Montserrat", sans-serif;
-    font-weight: 700;
-    font-style: normal;
-
-    
-
-
-
-
+/* 
+0,400  → normal 400
+0,700  → normal 700
+1,200  → italic 200
+1,400  → italic 400
+1,700  → italic 700
 */
 
 * {
@@ -408,12 +402,10 @@ body.modal-open {
 }
 
 .photo-picker__icon_empty {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
+    display: block;
     width: auto;
     height: 64px;
+    object-fit: contain;
 }
 
 .photo-picker__text_title {
