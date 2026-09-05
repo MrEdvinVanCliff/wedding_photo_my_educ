@@ -53,11 +53,25 @@ console.log("Знайдене поле:", photoInput);
 
 photoInput.addEventListener("change", handleFileSelection);
 
-const photoPicker = document.querySelector(".photo-picker");
-const photoPreview = document.querySelector("#photo-preview");
-const photoError = document.querySelector("#photo-error");
+const photoPickerArea = document.querySelector("#photo-picker-area");
 
-const MAX_FILES = 10;
+photoPickerArea.addEventListener("click", (event) => {
+
+    if (event.target.closest(".photo-preview__add")) {
+        return;
+    }
+
+    if (selectedFiles.length < MAX_PHOTOS) {
+        photoInput.click();
+    }
+});
+
+
+const photoPreview = document.querySelector("#photo-preview");
+const photoPlaceholder = document.querySelector("#photo-placeholder");
+const photoCounter = document.querySelector("#photo-counter");
+
+const MAX_FILES = 12;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 let selectedFiles = [];
@@ -91,40 +105,17 @@ function clearPhotoPreview() {
 // обробка вибору файлів
 
 function handleFileSelection(event) {
-    clearPhotoError();
+    const files = Array.from(event.target.files);
 
-    const newFiles = Array.from(event.target.files);
+    const availableSlots = MAX_PHOTOS - selectedFiles.length;
 
-    for (const file of newFiles) {
-        if (!file.type.startsWith("image/")) {
-            showPhotoError(`Файл "${file.name}" не є зображенням.`);
-            continue;
-        }
+    const filesToAdd = files.slice(0, availableSlots);
 
-        if (file.size > MAX_FILE_SIZE) {
-            showPhotoError(
-                `Файл "${file.name}" перевищує максимальний розмір 10 MB.`
-            );
-            continue;
-        }
-
-        if (selectedFiles.length >= MAX_FILES) {
-            showPhotoError(
-                `Можна вибрати не більше ${MAX_FILES} фотографій.`
-            );
-            break;
-        }
-
-        selectedFiles.push(file);
-    }
-
-    photoInput.value = "";
-
-    console.log("Фото в масиві:", selectedFiles);
+    selectedFiles.push(...filesToAdd);
 
     renderPhotoPreview();
 
-    console.log(selectedFiles);
+    photoInput.value = "";
 }
 
 // відображення попереднього перегляду фото
@@ -176,42 +167,50 @@ function createMoreItem(file, hiddenCount) {
 
 function renderPhotoPreview() {
 
-    console.log("renderPhotoPreview запущено");
-    console.log("Кількість фото:", selectedFiles.length);
+    photoPreview.innerHTML = "";
 
-    clearPhotoPreview();
-
-    const hasPhotos = selectedFiles.length > 0;
-
-    photoPicker.classList.toggle("has-photos", hasPhotos);
-
-    if (!hasPhotos) {
-        return;
+    if (selectedFiles.length === 0) {
+        photoPlaceholder.style.display = "flex";
+    } else {
+        photoPlaceholder.style.display = "none";
     }
 
-    if (selectedFiles.length <= 4) {
-        selectedFiles.forEach((file) => {
-            const item = createPhotoItem(file);
-            photoPreview.append(item);
-        });
+    selectedFiles.forEach((file) => {
 
-        if (selectedFiles.length < 4) {
-            photoPreview.append(createAddButton());
-        }
+        const item = document.createElement("div");
+        item.classList.add("photo-preview__item");
 
-        return;
-    }
+        const image = document.createElement("img");
 
-    const visibleFiles = selectedFiles.slice(0, 3);
-    const hiddenCount = selectedFiles.length - 3;
+        image.src = URL.createObjectURL(file);
+        image.alt = file.name;
 
-    visibleFiles.forEach((file) => {
-        photoPreview.append(createPhotoItem(file));
+        item.appendChild(image);
+
+        photoPreview.appendChild(item);
     });
 
-    photoPreview.append(
-        createMoreItem(selectedFiles[3], hiddenCount)
-    );
+
+    if (selectedFiles.length < MAX_PHOTOS) {
+
+        const addButton = document.createElement("div");
+
+        addButton.classList.add("photo-preview__add");
+
+        addButton.innerHTML = "+";
+
+        addButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+
+            photoInput.click();
+        });
+
+        photoPreview.appendChild(addButton);
+    }
+
+
+    photoCounter.textContent =
+        `${selectedFiles.length} / ${MAX_PHOTOS}`;
 }
 
 console.log({

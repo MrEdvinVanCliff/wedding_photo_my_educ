@@ -77,41 +77,42 @@
 
                 <form class="upload-form" id="upload-form">
 
-                    
                     <div class="photo-picker">
+
                         <input
-                            class="photo-picker__input"
                             id="photo-input"
-                            name="photos"
                             type="file"
                             accept="image/*"
                             multiple
+                            hidden
                         >
 
-                        <label class="photo-picker__empty" for="photo-input">
-                            <img
-                            class="photo-picker__icon_empty"
-                            src="assets/empty_photo.png"
-                            alt=""
-                            >
+                        <div class="photo-picker__area" id="photo-picker-area">
+
+                            <div class="photo-picker__placeholder" id="photo-placeholder">
+                            <img class="photo-picker__icon_empty" src="assets/empty_photo.png" alt="">
+                            
                             <span class="photo-picker__text_title">натисність, щоб додати фото</span>
                             <span class="photo-picker__text_subtitle">максимальний розмір - 10Mb</span>
-                        </label>
 
-                        <div
-                            class="photo-picker__preview"
-                            id="photo-preview"
-                            aria-live="polite"
-                        ></div>
+                            </div>
 
-                        <div
-                            class="photo-picker__error"
-                            id="photo-error"
-                            aria-live="polite"
-                        ></div>
+
+                            <div class="photo-preview" id="photo-preview"></div>
+
+
+                            <div class="photo-picker__counter" id="photo-counter">
+                                0 / 12
+                            </div>
+
+                        </div>
+
+                        <div id="photo-error"></div>
 
                     </div>
-                    
+
+
+
 
                     <label class="anonymous-switch">
                         <input
