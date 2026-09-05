@@ -55,15 +55,9 @@ photoInput.addEventListener("change", handleFileSelection);
 
 const photoPickerArea = document.querySelector("#photo-picker-area");
 
-photoPickerArea.addEventListener("click", (event) => {
 
-    if (event.target.closest(".photo-preview__add")) {
-        return;
-    }
-
-    if (selectedFiles.length < MAX_PHOTOS) {
-        photoInput.click();
-    }
+photoPickerArea.addEventListener('click', () => {
+  photoInput.click();
 });
 
 
@@ -71,8 +65,8 @@ const photoPreview = document.querySelector("#photo-preview");
 const photoPlaceholder = document.querySelector("#photo-placeholder");
 const photoCounter = document.querySelector("#photo-counter");
 
-const MAX_FILES = 12;
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_PHOTOS = 12;
+const MAX_PHOTO_SIZE = 10 * 1024 * 1024;
 
 let selectedFiles = [];
 

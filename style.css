@@ -425,7 +425,7 @@ body.modal-open {
     font-size: 16px;
 }
 
-.photo-picker.has-photos .photo-picker__empty {
+.photo-picker.has-photos .photo-picker__area {
     display: none;
 }
 
