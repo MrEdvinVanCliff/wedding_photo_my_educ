@@ -107,6 +107,8 @@ function handleFileSelection(event) {
 
     selectedFiles.push(...filesToAdd);
 
+    updatePhotoCount(selectedFiles.length);
+
     renderPhotoPreview();
 
     photoInput.value = "";
@@ -139,6 +141,23 @@ function createAddButton() {
     addButton.textContent = "+";
 
     return addButton;
+}
+
+// оновлення лічильника фото
+
+
+
+console.log("Кількість вибраних фото:", selectedFiles.length);
+
+const photoCount = document.querySelector("#photo-count");
+
+function updatePhotoCount(count) {
+  if (count === 0) {
+    photoCount.style.display = "none";
+  } else {
+    photoCount.style.display = "block";
+    photoCount.textContent = `додано ${count} фото з ${MAX_PHOTOS}`;
+  }
 }
 
 // створення елемента для відображення кількості прихованих фото
