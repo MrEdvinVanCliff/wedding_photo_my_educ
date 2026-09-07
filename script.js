@@ -49,8 +49,6 @@ anonymousCheckbox.addEventListener("change", () => {
 
 const photoInput = document.querySelector("#photo-input");
 
-console.log("Знайдене поле:", photoInput);
-
 photoInput.addEventListener("change", handleFileSelection);
 
 const photoPickerArea = document.querySelector("#photo-picker-area");
@@ -63,7 +61,7 @@ photoPickerArea.addEventListener('click', () => {
 
 const photoPreview = document.querySelector("#photo-preview");
 const photoPlaceholder = document.querySelector("#photo-placeholder");
-const photoCounter = document.querySelector("#photo-counter");
+
 
 const MAX_PHOTOS = 12;
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024;
@@ -83,17 +81,6 @@ function clearPhotoError() {
 }
 
 
-// очищення попереднього перегляду фото
-
-function clearPhotoPreview() {
-    photoPreview
-        .querySelectorAll("img")
-        .forEach((image) => {
-            URL.revokeObjectURL(image.src);
-        });
-
-    photoPreview.innerHTML = "";
-}
 
 
 // обробка вибору файлів
@@ -114,37 +101,9 @@ function handleFileSelection(event) {
     photoInput.value = "";
 }
 
-// відображення попереднього перегляду фото
 
-function createPhotoItem(file) {
-    const item = document.createElement("div");
-    item.classList.add("photo-picker__item");
-
-    const image = document.createElement("img");
-    image.classList.add("photo-picker__image");
-    image.src = URL.createObjectURL(file);
-    image.alt = "Вибрана фотографія";
-
-    item.append(image);
-
-    return item;
-}
-
-// створення кнопки додавання фото
-
-function createAddButton() {
-    const addButton = document.createElement("label");
-
-    addButton.classList.add("photo-picker__add");
-    addButton.setAttribute("for", "photo-input");
-    addButton.setAttribute("aria-label", "Додати ще фото");
-    addButton.textContent = "+";
-
-    return addButton;
-}
 
 // оновлення лічильника фото
-
 
 console.log("Кількість вибраних фото:", selectedFiles.length);
 
@@ -159,21 +118,7 @@ function updatePhotoCount(count) {
   }
 }
 
-// створення елемента для відображення кількості прихованих фото
 
-function createMoreItem(file, hiddenCount) {
-    const item = createPhotoItem(file);
-
-    item.classList.add("photo-picker__more");
-
-    const count = document.createElement("span");
-    count.classList.add("photo-picker__count");
-    count.textContent = `+${hiddenCount}`;
-
-    item.append(count);
-
-    return item;
-}
 
 // рендеринг попереднього перегляду фото
 
@@ -204,6 +149,7 @@ function renderPhotoPreview() {
         removeButton.addEventListener("click", (event) => {
             event.stopPropagation();
             selectedFiles.splice(index, 1);
+            updatePhotoCount(selectedFiles.length);
             renderPhotoPreview();
         });
         
@@ -214,7 +160,7 @@ function renderPhotoPreview() {
     });
 
 
-    if (selectedFiles.length < MAX_PHOTOS) {
+    if (selectedFiles.length > 0 && selectedFiles.length < MAX_PHOTOS) {
 
         const addButton = document.createElement("div");
 
@@ -231,10 +177,10 @@ function renderPhotoPreview() {
         photoPreview.appendChild(addButton);
     }
 
-
-    photoCounter.textContent =
-        `${selectedFiles.length} / ${MAX_PHOTOS}`;
 }
+
+
+
 
 console.log({
     photoInput,
