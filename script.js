@@ -146,7 +146,6 @@ function createAddButton() {
 // оновлення лічильника фото
 
 
-
 console.log("Кількість вибраних фото:", selectedFiles.length);
 
 const photoCount = document.querySelector("#photo-count");
@@ -188,19 +187,30 @@ function renderPhotoPreview() {
         photoPlaceholder.style.display = "none";
     }
 
-    selectedFiles.forEach((file) => {
+    selectedFiles.forEach((file, index) => {
 
         const item = document.createElement("div");
         item.classList.add("photo-preview__item");
 
         const image = document.createElement("img");
-
         image.src = URL.createObjectURL(file);
         image.alt = file.name;
 
-        item.appendChild(image);
+        const removeButton = document.createElement("button");
+        removeButton.classList.add("photo-preview__remove");
+        removeButton.type = "button";
+        removeButton.textContent = "×";
 
+        removeButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            selectedFiles.splice(index, 1);
+            renderPhotoPreview();
+        });
+        
+        item.appendChild(image);
+        item.appendChild(removeButton);
         photoPreview.appendChild(item);
+
     });
 
 

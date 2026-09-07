@@ -183,7 +183,7 @@ body.modal-open {
     left: 0;
 
     width: 100%;
-    height: 75svh;
+    height: 85svh;
     overflow-y: auto;
 
     padding: 52px 24px 32px;
@@ -483,6 +483,26 @@ body.modal-open {
     justify-content: center;
 
     font-size: 28px;
+
+    cursor: pointer;
+}
+
+.photo-preview__remove {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+
+    width: 24px;
+    height: 24px;
+
+    border: none;
+    border-radius: 50%;
+
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+
+    font-size: 18px;
+    line-height: 1;
 
     cursor: pointer;
 }
