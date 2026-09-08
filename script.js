@@ -82,7 +82,6 @@ function clearPhotoError() {
 
 
 
-
 // обробка вибору файлів
 
 function handleFileSelection(event) {
@@ -91,8 +90,17 @@ function handleFileSelection(event) {
     const availableSlots = MAX_PHOTOS - selectedFiles.length;
 
     const filesToAdd = files.slice(0, availableSlots);
+ 
+    filesToAdd.forEach((file) => {
+        selectedFiles.push({
+            file: file,
+            url: URL.createObjectURL(file)
+        });
+    });
 
-    selectedFiles.push(...filesToAdd);
+    console.log("Вибрані файли:", selectedFiles, "тип файлів:", selectedFiles.map(f => f.file.type), "розмір файлів:", selectedFiles.map(f => f.file.size), "URL файлів:", selectedFiles.map(f => f.url));
+    
+
 
     updatePhotoCount(selectedFiles.length);
 
@@ -134,20 +142,24 @@ function renderPhotoPreview() {
 
     selectedFiles.forEach((file, index) => {
 
+
         const item = document.createElement("div");
         item.classList.add("photo-preview__item");
 
         const image = document.createElement("img");
-        image.src = URL.createObjectURL(file);
-        image.alt = file.name;
-
+        
+        image.src = file.url;
+        image.alt = file.file.name;
+        
         const removeButton = document.createElement("button");
         removeButton.classList.add("photo-preview__remove");
         removeButton.type = "button";
         removeButton.textContent = "×";
 
+
         removeButton.addEventListener("click", (event) => {
             event.stopPropagation();
+            URL.revokeObjectURL(file.url);
             selectedFiles.splice(index, 1);
             updatePhotoCount(selectedFiles.length);
             renderPhotoPreview();
@@ -159,6 +171,7 @@ function renderPhotoPreview() {
 
     });
 
+// додавання кнопки для додавання фото, якщо ще не досягнуто максимуму
 
     if (selectedFiles.length > 0 && selectedFiles.length < MAX_PHOTOS) {
 
