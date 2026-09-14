@@ -189,7 +189,7 @@ body.modal-open {
     padding: 52px 24px 32px;
 
     color: #1a1a1a;
-    background-color: #fff1e7;
+    background-color: rgba(242, 226, 198, 1);
 
     border-radius: 32px 32px 0 0;
 }
@@ -267,9 +267,9 @@ body.modal-open {
     height: 48px;
     padding: 0 16px;
 
-    color: #1a1a1a;
-    background-color: rgb(172 127 94);
-    border: 1px solid rgb(172 127 94);
+    color:rgba(242, 226, 198, 1);
+    background-color:rgba(128, 76, 36, 1);
+    border: 1px solid rgba(128, 76, 36, 1);
     border-radius: 20px;
 
     font-family: "Montserrat", sans-serif;
@@ -284,7 +284,7 @@ body.modal-open {
 }
 
 .upload-form__input::placeholder {
-    color: #1b1b1a;
+    color: rgba(242, 226, 198, 1);
     opacity: 1;
     font-family: "Montserrat", sans-serif;
     font-weight: 1700;
@@ -596,4 +596,33 @@ body.modal-open {
     font-style: normal;
 
     cursor: pointer;
+}
+
+/* 
+gallery
+*/
+
+.gallery {
+  padding: 48px 16px;
+  background-color:rgba(240, 237, 228, 1)
+}
+
+.gallery__title {
+  margin: 0 0 24px;
+  font-size: 24px;
+  text-align: center;
+}
+
+.gallery__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.gallery__grid img {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
 }
