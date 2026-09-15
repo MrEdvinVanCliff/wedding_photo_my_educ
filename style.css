@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,700;1,200;1,700&family=Monsieur+La+Doulaise&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,700;1,400;1,700;1,200&family=Monsieur+La+Doulaise&display=swap");
 
 /* 
 0,400  → normal 400
@@ -9,11 +9,11 @@
 */
 
 :root {
-    --button-background: #3b3b3b;
+    --button-background: #353535;
     --button-text: #e6e6e6;
     --hero-background: #ffffff;
     --text-color: #1a1a1a;
-    --galerry-background: rgba(240, 237, 228, 1);
+    --galerry-background: #d9d9d9;
     --name-field-background: #3c6e71;
     --name-field-text: rgb(232, 225, 212);
     --name-field-border:#284b63;
@@ -129,7 +129,7 @@ img {
     margin-bottom: 219px;
 
     color: #e6e6e6;
-    background-color: #3b3b3b;
+    background-color: var(--button-background);
     border: 0;
     cursor: pointer;
 
@@ -295,7 +295,7 @@ body.modal-open {
 }
 
 .upload-form__input:focus {
-    border-color: #1a1a1a;
+    border-color: var(--name-field-border);
     outline: 2px solid rgb(26 26 26 / 15%);
 }
 
@@ -352,7 +352,7 @@ body.modal-open {
 
 .anonymous-switch__input:checked
     + .anonymous-switch__control {
-    background-color: #3b3b3b;
+    background-color: var(--button-background);
 }
 
 .anonymous-switch__input:checked
@@ -379,7 +379,7 @@ body.modal-open {
     position: absolute;
     width: 1px;
     height: 1px;
-    opacity: 1;
+    opacity: 0;
 }
 
 .photo-picker__area {
@@ -620,7 +620,7 @@ gallery
 
 .gallery {
   padding: 48px 16px;
-  background-color:rgba(240, 237, 228, 1)
+  background-color: var(--galerry-background);
 }
 
 .gallery__title {
