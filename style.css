@@ -8,6 +8,22 @@
 1,700  → italic 700
 */
 
+:root {
+    --button-background: #3b3b3b;
+    --button-text: #e6e6e6;
+    --hero-background: #ffffff;
+    --text-color: #1a1a1a;
+    --galerry-background: rgba(240, 237, 228, 1);
+    --name-field-background: #3c6e71;
+    --name-field-text: rgb(232, 225, 212);
+    --name-field-border:#284b63;
+    --modal-background: #d9d9d9;
+    --modal-text: #353535;
+    --modal-contur: #284b63;
+
+
+}
+
 * {
     box-sizing: border-box;
 }
@@ -188,8 +204,8 @@ body.modal-open {
 
     padding: 52px 24px 32px;
 
-    color: #1a1a1a;
-    background-color: rgba(242, 226, 198, 1);
+    color: var(--modal-text);
+    background-color: var(--modal-background);
 
     border-radius: 32px 32px 0 0;
 }
@@ -267,9 +283,9 @@ body.modal-open {
     height: 48px;
     padding: 0 16px;
 
-    color:rgba(242, 226, 198, 1);
-    background-color:rgba(128, 76, 36, 1);
-    border: 1px solid rgba(128, 76, 36, 1);
+    color: var(--name-field-text);
+    background-color: var(--name-field-background);
+    border: 1px solid var(--name-field-border);
     border-radius: 20px;
 
     font-family: "Montserrat", sans-serif;
@@ -284,7 +300,7 @@ body.modal-open {
 }
 
 .upload-form__input::placeholder {
-    color: rgba(242, 226, 198, 1);
+    color: var(--name-field-text);
     opacity: 1;
     font-family: "Montserrat", sans-serif;
     font-weight: 1700;
@@ -371,7 +387,7 @@ body.modal-open {
     min-height: 180px;
     padding: 24px;
 
-    border: 3px dashed rgb(186 171 154);
+    border: 3px dashed var(--modal-contur);
     border-radius: 34px;
     cursor: pointer;
 }
@@ -395,8 +411,8 @@ body.modal-open {
     width: 64px;
     height: 64px;
 
-    color: rgb(186 171 154);
-    border: 2px dashed rgb(186 171 154);
+    color: var(--modal-contur);
+    border: 2px dashed var(--modal-contur);
     border-radius: 16px;
 
 
