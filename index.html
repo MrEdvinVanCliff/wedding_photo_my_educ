@@ -69,6 +69,8 @@
 
         <div class="modal__overlay" data-close-modal></div>
 
+
+
         <section
             class="modal__sheet"
             role="dialog"
@@ -85,9 +87,14 @@
                 &times;
             </button>
 
-            <h2 class="modal__title" id="upload-modal-title">
-                додати фото
-            </h2>
+            <fieldset class="upload-mode">
+            <legend class="upload-mode__legend">Режим додавання фото</legend>
+            <input class="upload-mode__input" id="upload-mode-standard" type="radio" name="uploadMode" value="standard" checked>
+            <label class="upload-mode__label" for="upload-mode-standard">звичайний</label>
+            <input class="upload-mode__input" id="upload-mode-advanced" type="radio" name="uploadMode" value="advanced">
+            <label class="upload-mode__label" for="upload-mode-advanced">продвинутий</label>
+            <span class="upload-mode__indicator" aria-hidden="true"></span>
+            </fieldset>
 
             <div class="modal__content">
 
