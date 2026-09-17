@@ -8,6 +8,8 @@ const photoStyles = document.querySelector("#photo-styles");
 const anonymousCheckbox = document.querySelector("#anonymous-checkbox");
 const nameField = document.querySelector("#name-field");
 const nameInput = document.querySelector("#guest-name");
+const commentInput = document.querySelector("#guest-comment");
+const styleNotice = document.querySelector("#style-notice");
 const photoInput = document.querySelector("#photo-input");
 const photoPickerArea = document.querySelector("#photo-picker-area");
 const photoPreview = document.querySelector("#photo-preview");
@@ -17,15 +19,50 @@ const photoError = document.querySelector("#photo-error");
 const photoCount = document.querySelector("#photo-count");
 const uploadStatus = document.querySelector("#upload-status");
 const submitButton = uploadForm.querySelector('[type="submit"]');
+const galleryGrid = document.querySelector("#gallery-grid");
+const galleryColumns = [document.querySelector("#gallery-left"), document.querySelector("#gallery-right")];
+const galleryStatus = document.querySelector("#gallery-status");
+const galleryRetry = document.querySelector("#gallery-retry");
 
 const MAX_PHOTOS = 12;
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024;
 const MAX_PHOTO_PIXELS = 50_000_000;
-const SUPPORTED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"]);
+const SUPPORTED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif", "image/heic", "image/heif"]);
 const modeSelections = { standard: [], advanced: [] };
 let currentUploadMode = "standard";
 let nextPhotoId = 0;
 let isSelecting = false;
+let isUploading = false;
+let submissionId = null;
+let galleryVersion = 0;
+const carouselObservers = new Set();
+const deviceId = getDeviceId();
+
+// randomUUID() is not available on plain HTTP on a phone's LAN address.
+function createId() {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 15) | 64;
+    bytes[8] = (bytes[8] & 63) | 128;
+    const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function getDeviceId() {
+    const key = "wedding.deviceId";
+    try {
+        const saved = localStorage.getItem(key);
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(saved || "")) return saved;
+        const created = createId();
+        localStorage.setItem(key, created);
+        return created;
+    } catch {
+        // The gallery still works when the browser forbids persistent storage.
+        return createId();
+    }
+}
+
+uploadForm.addEventListener("input", () => { if (!isUploading) submissionId = null; });
 
 openModalButton.addEventListener("click", () => {
     modal.showModal();
@@ -75,6 +112,7 @@ modal.addEventListener("keydown", (event) => {
 function syncAnonymous() {
     nameField.hidden = anonymousCheckbox.checked;
     nameInput.disabled = anonymousCheckbox.checked;
+    nameInput.required = !anonymousCheckbox.checked;
 }
 
 anonymousCheckbox.addEventListener("change", syncAnonymous);
@@ -88,7 +126,7 @@ function setUploadStatus(message = "") {
 }
 
 function choosePhotos() {
-    if (!isSelecting) photoInput.click();
+    if (!isSelecting && !isUploading) photoInput.click();
 }
 
 photoPlaceholder.addEventListener("click", choosePhotos);
@@ -96,9 +134,9 @@ photoInput.addEventListener("change", handleFileSelection);
 uploadModes.forEach((input) => input.addEventListener("change", syncUploadMode));
 
 function validatePhoto(file) {
-    const hasSupportedExtension = /\.(jpe?g|png|webp|gif|avif)$/i.test(file.name);
+    const hasSupportedExtension = /\.(jpe?g|png|webp|gif|avif|heic|heif)$/i.test(file.name);
     if (!SUPPORTED_TYPES.has(file.type) && !(file.type === "" && hasSupportedExtension)) {
-        return `«${file.name}»: виберіть JPG, PNG, WebP, GIF або AVIF.`;
+        return `«${file.name}»: виберіть JPG, PNG, WebP, GIF, AVIF або HEIC.`;
     }
     if (!file.size) return `«${file.name}»: файл порожній.`;
     if (file.size > MAX_PHOTO_SIZE) return `«${file.name}»: розмір перевищує 10 МБ.`;
@@ -124,6 +162,12 @@ async function createPhotoPreview(file) {
         const thumbnail = await new Promise((resolve) => canvas.toBlob(resolve, "image/webp", 0.85));
         if (!thumbnail) throw new Error("Не вдалося створити попередній перегляд.");
         return URL.createObjectURL(thumbnail);
+    } catch (error) {
+        // Many phone browsers cannot decode HEIC. The server validates it and
+        // creates a WebP for the gallery; show a placeholder until then.
+        if (error.name === "EncodingError" && (/\.(heic|heif)$/i.test(file.name)
+            || ["image/heic", "image/heif"].includes(file.type))) return "assets/empty_photo.webp";
+        throw error;
     } finally {
         image.removeAttribute("src");
         URL.revokeObjectURL(sourceUrl);
@@ -132,17 +176,23 @@ async function createPhotoPreview(file) {
 
 function setSelectionBusy(busy) {
     isSelecting = busy;
+    syncBusyState();
+}
+
+function syncBusyState() {
+    const busy = isSelecting || isUploading;
     uploadForm.setAttribute("aria-busy", String(busy));
-    photoInput.disabled = busy;
-    submitButton.disabled = busy;
-    uploadModes.forEach((input) => { input.disabled = busy; });
-    photoPickerArea.querySelectorAll("button").forEach((button) => { button.disabled = busy; });
+    uploadForm.querySelectorAll("button, input").forEach((control) => { control.disabled = busy; });
+    nameInput.disabled = busy || anonymousCheckbox.checked;
+    photoStyles.disabled = busy || currentUploadMode !== "advanced";
+    submitButton.textContent = isUploading ? "завантажуємо…" : "завантажити";
 }
 
 async function handleFileSelection(event) {
     const files = Array.from(event.target.files);
     photoInput.value = "";
-    if (!files.length || isSelecting) return;
+    if (!files.length || isSelecting || isUploading) return;
+    submissionId = null;
 
     setPhotoError();
     setUploadStatus("Готуємо попередній перегляд…");
@@ -193,7 +243,8 @@ function clearSelectedPhotos(photos) {
 }
 
 function removeSelectedPhoto(id) {
-    if (isSelecting) return;
+    if (isSelecting || isUploading) return;
+    submissionId = null;
     const photos = modeSelections[currentUploadMode];
     const index = photos.findIndex((photo) => photo.id === id);
     if (index === -1) return;
@@ -266,26 +317,288 @@ function syncUploadMode() {
     photoInput.multiple = !isAdvanced;
     photoStyles.hidden = !isAdvanced;
     photoStyles.disabled = !isAdvanced;
+    styleNotice.hidden = !isAdvanced;
     photoPickerArea.classList.toggle("is-advanced", isAdvanced);
-    photoSubtitle.textContent = isAdvanced ? "1 фото, максимум 10 МБ" : "до 12 фото, максимум 10 МБ кожне";
+    photoSubtitle.textContent = isAdvanced ? "виберіть одну фотографію" : "виберіть до 12 фотографій";
     setPhotoError();
     setUploadStatus();
     renderPhotoPreview();
 }
 
-uploadForm.addEventListener("submit", (event) => {
-    // No upload service is connected. Never navigate with guest data in the URL
-    // or report a successful upload without actually saving the files.
+uploadForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (isSelecting) return;
-    if (!modeSelections[currentUploadMode].length) {
+    if (isSelecting || isUploading) return;
+    const photos = modeSelections[currentUploadMode];
+    if (!photos.length) {
         setPhotoError("Спочатку виберіть хоча б одне фото.");
         photoPlaceholder.focus();
         return;
     }
+    if (!anonymousCheckbox.checked && !nameInput.value.trim()) {
+        setUploadStatus("Введіть ім’я або виберіть анонімний режим.");
+        nameInput.focus();
+        return;
+    }
     setPhotoError();
-    setUploadStatus("Завантаження ще недоступне. Фото залишаються лише в попередньому перегляді й не збережені в альбомі.");
+    setUploadStatus("Завантажуємо й зберігаємо фотографії…");
+    submissionId ||= createId();
+    const data = new FormData();
+    data.append("submissionId", submissionId);
+    data.append("authorName", anonymousCheckbox.checked ? "" : nameInput.value.trim());
+    data.append("isAnonymous", String(anonymousCheckbox.checked));
+    data.append("comment", commentInput.value.trim());
+    data.append("uploadMode", currentUploadMode);
+    if (currentUploadMode === "advanced") data.append("photoStyle", uploadForm.elements.photoStyle.value);
+    photos.forEach((photo) => data.append("photos", photo.file));
+    isUploading = true;
+    syncBusyState();
+    try {
+        const post = await apiRequest("/api/posts", { method: "POST", body: data });
+        ++galleryVersion; // A slower initial GET must not overwrite this new post.
+        const card = createPostCard(post);
+        const column = galleryColumns[0].scrollHeight <= galleryColumns[1].scrollHeight
+            ? galleryColumns[0] : galleryColumns[1];
+        column.prepend(card);
+        galleryGrid.setAttribute("aria-busy", "false");
+        galleryStatus.textContent = "Фотографії збережено в альбомі.";
+        galleryRetry.hidden = true;
+        Object.values(modeSelections).forEach(clearSelectedPhotos);
+        uploadForm.reset();
+        syncAnonymous();
+        syncUploadMode();
+        submissionId = null;
+        closeModal();
+        document.querySelector("#gallery").scrollIntoView({ behavior: scrollBehavior(), block: "start" });
+    } catch (error) {
+        // Preserve both files and submissionId so a retry cannot create duplicates.
+        setUploadStatus(`${error.message} Вибрані фото збережені у формі — спробуйте ще раз.`);
+    } finally {
+        isUploading = false;
+        syncBusyState();
+    }
 });
+
+async function apiRequest(url, options = {}) {
+    let response;
+    try {
+        response = await fetch(url, {
+            ...options,
+            headers: { "X-Device-Id": deviceId, ...options.headers },
+            cache: "no-store",
+        });
+    } catch {
+        throw new Error("Немає зв’язку із сервером. Перевірте Wi-Fi та запуск альбому на MacBook.");
+    }
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+        const detail = payload?.detail;
+        throw new Error(typeof detail === "string" ? detail : `Не вдалося виконати запит (${response.status}).`);
+    }
+    if (!payload) throw new Error("Сервер повернув некоректну відповідь.");
+    return payload;
+}
+
+function scrollBehavior() {
+    return matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
+}
+
+function createPhotoElement(photo, author, index, total) {
+    const image = document.createElement("img");
+    image.className = "post-card__image";
+    image.src = photo.url;
+    if (photo.thumbnailWidth < photo.width) {
+        image.srcset = `${photo.thumbnailUrl} ${photo.thumbnailWidth}w, ${photo.url} ${photo.width}w`;
+        image.sizes = "(min-width: 1232px) 596px, calc((100vw - 40px) / 2)";
+    }
+    image.width = photo.width;
+    image.height = photo.height;
+    image.loading = "lazy";
+    image.decoding = "async";
+    image.alt = `${author}: фото ${index + 1} з ${total}`;
+    return image;
+}
+
+function createCarousel(photos, author) {
+    const media = document.createElement("div");
+    media.className = "post-card__media";
+    if (photos.length === 1) {
+        media.append(createPhotoElement(photos[0], author, 0, 1));
+        return [media];
+    }
+    media.classList.add("post-carousel");
+    media.setAttribute("role", "region");
+    media.setAttribute("aria-roledescription", "карусель");
+    media.setAttribute("aria-label", `Фотографії: ${author}`);
+    const track = document.createElement("div");
+    track.className = "post-carousel__track";
+    track.tabIndex = 0;
+    track.setAttribute("aria-label", "Гортайте фото свайпом або стрілками ліворуч і праворуч");
+    const dots = document.createElement("div");
+    dots.className = "post-carousel__dots";
+    dots.setAttribute("role", "group");
+    dots.setAttribute("aria-label", "Оберіть фотографію");
+    let activeIndex = 0;
+    let frame = 0;
+    let previousWidth = 0;
+
+    const setActive = (index) => {
+        activeIndex = index;
+        const photo = photos[index];
+        media.style.aspectRatio = `${photo.width} / ${photo.height}`;
+        [...dots.children].forEach((dot, i) => {
+            dot.setAttribute("aria-current", String(i === index));
+        });
+        [...track.children].forEach((slide, i) => {
+            slide.setAttribute("aria-hidden", String(i !== index));
+        });
+    };
+    const goTo = (index) => {
+        const next = Math.max(0, Math.min(photos.length - 1, index));
+        track.scrollTo({ left: next * track.clientWidth, behavior: scrollBehavior() });
+    };
+    photos.forEach((photo, index) => {
+        const slide = document.createElement("div");
+        slide.className = "post-carousel__slide";
+        slide.setAttribute("role", "group");
+        slide.setAttribute("aria-label", `${index + 1} з ${photos.length}`);
+        slide.append(createPhotoElement(photo, author, index, photos.length));
+        track.append(slide);
+        const dot = document.createElement("button");
+        dot.type = "button";
+        dot.className = "post-carousel__dot";
+        dot.setAttribute("aria-label", `Фото ${index + 1} з ${photos.length}`);
+        dot.addEventListener("click", () => goTo(index));
+        dots.append(dot);
+    });
+    track.addEventListener("scroll", () => {
+        if (frame) return;
+        frame = requestAnimationFrame(() => {
+            frame = 0;
+            // Rotation changes the width before the scroll offset is realigned.
+            // Let ResizeObserver preserve the current slide in that frame.
+            if (!track.clientWidth || track.clientWidth !== previousWidth) return;
+            const index = Math.max(0, Math.min(photos.length - 1, Math.round(track.scrollLeft / track.clientWidth)));
+            if (index !== activeIndex) setActive(index);
+        });
+    }, { passive: true });
+    track.addEventListener("keydown", (event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        goTo(event.key === "Home" ? 0 : event.key === "End" ? photos.length - 1
+            : activeIndex + (event.key === "ArrowRight" ? 1 : -1));
+    });
+    const observer = new ResizeObserver(() => {
+        const width = track.clientWidth;
+        if (width && width !== previousWidth) {
+            previousWidth = width;
+            track.scrollLeft = activeIndex * width;
+        }
+    });
+    observer.observe(track);
+    carouselObservers.add(observer);
+    media.append(track);
+    setActive(0);
+    return [media, dots];
+}
+
+function createPostCard(post) {
+    const author = post.isAnonymous ? "анонімно" : post.authorName;
+    const card = document.createElement("article");
+    card.className = "post-card";
+    card.dataset.postId = post.id;
+    card.setAttribute("aria-label", `Публікація: ${author}`);
+    card.append(...createCarousel(post.photos, author));
+    const meta = document.createElement("div");
+    meta.className = "post-card__meta";
+    const name = document.createElement("span");
+    name.className = "post-card__author";
+    name.textContent = author;
+    name.title = author;
+    const like = document.createElement("button");
+    like.className = "post-card__like";
+    like.type = "button";
+    const heart = document.createElement("span");
+    heart.className = "post-card__heart";
+    heart.setAttribute("aria-hidden", "true");
+    const count = document.createElement("span");
+    count.className = "post-card__likes-count";
+    const errorMessage = document.createElement("p");
+    errorMessage.className = "post-card__error";
+    errorMessage.setAttribute("role", "alert");
+    errorMessage.hidden = true;
+    const renderLike = () => {
+        like.setAttribute("aria-pressed", String(post.likedByDevice));
+        like.setAttribute("aria-label", `${post.likedByDevice ? "Прибрати" : "Поставити"} вподобання. Усього: ${post.likesCount}`);
+        heart.textContent = post.likedByDevice ? "♥" : "♡";
+        count.textContent = String(post.likesCount);
+    };
+    like.append(heart, count);
+    like.addEventListener("click", async () => {
+        if (like.disabled) return;
+        like.disabled = true;
+        errorMessage.hidden = true;
+        try {
+            const result = await apiRequest(`/api/posts/${post.id}/like`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ deviceId, liked: !post.likedByDevice }),
+            });
+            Object.assign(post, result);
+            renderLike();
+        } catch (error) {
+            errorMessage.textContent = error.message;
+            errorMessage.hidden = false;
+        } finally {
+            like.disabled = false;
+        }
+    });
+    renderLike();
+    meta.append(name, like);
+    card.append(meta);
+    if (post.comment) {
+        const comment = document.createElement("p");
+        comment.className = "post-card__comment";
+        comment.textContent = post.comment;
+        comment.title = post.comment;
+        card.append(comment);
+    }
+    card.append(errorMessage);
+    return card;
+}
+
+async function loadPosts() {
+    const version = ++galleryVersion;
+    galleryGrid.setAttribute("aria-busy", "true");
+    galleryStatus.textContent = "Завантажуємо фотографії…";
+    galleryRetry.hidden = true;
+    try {
+        const posts = await apiRequest("/api/posts");
+        if (version !== galleryVersion) return;
+        carouselObservers.forEach((observer) => observer.disconnect());
+        carouselObservers.clear();
+        galleryColumns.forEach((column) => column.replaceChildren());
+        const columnWidth = galleryColumns[0].clientWidth || 175;
+        const heights = [0, 0];
+        const fragments = [document.createDocumentFragment(), document.createDocumentFragment()];
+        posts.forEach((post) => {
+            if (!post.photos?.length) return;
+            const index = heights[0] <= heights[1] ? 0 : 1;
+            fragments[index].append(createPostCard(post));
+            const first = post.photos[0];
+            heights[index] += columnWidth * first.height / first.width + 64
+                + (post.comment ? 18 : 0) + (post.photos.length > 1 ? 27 : 0);
+        });
+        galleryColumns.forEach((column, index) => column.append(fragments[index]));
+        galleryStatus.textContent = posts.length ? "" : "Тут з’являться ваші спільні спогади. Додайте перші фотографії.";
+    } catch (error) {
+        if (version !== galleryVersion) return;
+        galleryStatus.textContent = error.message;
+        galleryRetry.hidden = false;
+    } finally {
+        if (version === galleryVersion) galleryGrid.setAttribute("aria-busy", "false");
+    }
+}
+
+galleryRetry.addEventListener("click", loadPosts);
 
 window.addEventListener("pagehide", (event) => {
     // Retain thumbnails when the browser caches this page for Back/Forward.
@@ -295,3 +608,5 @@ window.addEventListener("pagehide", (event) => {
 syncAnonymous();
 syncUploadMode();
 openModalButton.disabled = false;
+loadPosts();
+window.addEventListener("pageshow", (event) => { if (event.persisted) loadPosts(); });
