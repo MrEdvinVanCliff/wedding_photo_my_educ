@@ -184,6 +184,16 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         with connection() as db:
             return read_posts(db, device_id)
 
+    @app.get("/api/photos/{photo_id}/download")
+    def download_photo(photo_id: UUID):
+        with connection() as db:
+            photo = db.execute("SELECT original_file FROM photos WHERE id = ?", (str(photo_id),)).fetchone()
+        if not photo or not (uploads / photo["original_file"]).is_file():
+            raise HTTPException(404, "Фотографію не знайдено.")
+        path = uploads / photo["original_file"]
+        return FileResponse(path, media_type="application/octet-stream",
+                            filename=f"wedding-{photo_id}{path.suffix}")
+
     @app.post("/api/posts", status_code=201)
     def create_post(
         photos: Annotated[list[UploadFile], File()],

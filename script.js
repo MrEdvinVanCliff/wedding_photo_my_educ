@@ -36,6 +36,8 @@ let isUploading = false;
 let submissionId = null;
 let galleryVersion = 0;
 const carouselObservers = new Set();
+let galleryPosts = [];
+const pendingLikes = new Set();
 const deviceId = getDeviceId();
 
 // randomUUID() is not available on plain HTTP on a phone's LAN address.
@@ -274,6 +276,7 @@ function renderPhotoPreview() {
         image.src = photo.previewUrl;
         image.alt = photo.file.name;
         image.decoding = "async";
+    image.draggable = false;
         const removeButton = document.createElement("button");
         removeButton.className = "photo-preview__remove";
         removeButton.type = "button";
@@ -355,6 +358,7 @@ uploadForm.addEventListener("submit", async (event) => {
     try {
         const post = await apiRequest("/api/posts", { method: "POST", body: data });
         ++galleryVersion; // A slower initial GET must not overwrite this new post.
+        galleryPosts.unshift(post);
         const card = createPostCard(post);
         const column = galleryColumns[0].scrollHeight <= galleryColumns[1].scrollHeight
             ? galleryColumns[0] : galleryColumns[1];
@@ -414,15 +418,40 @@ function createPhotoElement(photo, author, index, total) {
     image.height = photo.height;
     image.loading = "lazy";
     image.decoding = "async";
+    image.draggable = false;
     image.alt = `${author}: фото ${index + 1} з ${total}`;
     return image;
 }
 
-function createCarousel(photos, author) {
+function createPhotoButton(photo, post, index) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "post-card__open";
+    button.setAttribute("aria-label", `Відкрити фото ${index + 1}: ${post.isAnonymous ? "анонімно" : post.authorName}`);
+    button.append(createPhotoElement(photo, post.isAnonymous ? "анонімно" : post.authorName, index, post.photos.length));
+    let start = null;
+    let moved = false;
+    button.addEventListener("pointerdown", (event) => {
+        start = { x: event.clientX, y: event.clientY };
+        moved = false;
+    });
+    button.addEventListener("pointermove", (event) => {
+        if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10) moved = true;
+    });
+    button.addEventListener("pointercancel", () => { moved = true; start = null; });
+    button.addEventListener("click", (event) => {
+        if (!moved || event.detail === 0) openViewer(post, index, button);
+        start = null;
+    });
+    return button;
+}
+
+function createCarousel(post, author) {
+    const photos = post.photos;
     const media = document.createElement("div");
     media.className = "post-card__media";
     if (photos.length === 1) {
-        media.append(createPhotoElement(photos[0], author, 0, 1));
+        media.append(createPhotoButton(photos[0], post, 0));
         return [media];
     }
     media.classList.add("post-carousel");
@@ -450,6 +479,7 @@ function createCarousel(photos, author) {
         });
         [...track.children].forEach((slide, i) => {
             slide.setAttribute("aria-hidden", String(i !== index));
+            slide.querySelector("button").tabIndex = i === index ? 0 : -1;
         });
     };
     const goTo = (index) => {
@@ -461,7 +491,7 @@ function createCarousel(photos, author) {
         slide.className = "post-carousel__slide";
         slide.setAttribute("role", "group");
         slide.setAttribute("aria-label", `${index + 1} з ${photos.length}`);
-        slide.append(createPhotoElement(photo, author, index, photos.length));
+        slide.append(createPhotoButton(photo, post, index));
         track.append(slide);
         const dot = document.createElement("button");
         dot.type = "button";
@@ -507,51 +537,18 @@ function createPostCard(post) {
     card.className = "post-card";
     card.dataset.postId = post.id;
     card.setAttribute("aria-label", `Публікація: ${author}`);
-    card.append(...createCarousel(post.photos, author));
+    card.append(...createCarousel(post, author));
     const meta = document.createElement("div");
     meta.className = "post-card__meta";
     const name = document.createElement("span");
     name.className = "post-card__author";
     name.textContent = author;
     name.title = author;
-    const like = document.createElement("button");
-    like.className = "post-card__like";
-    like.type = "button";
-    const heart = document.createElement("span");
-    heart.className = "post-card__heart";
-    heart.setAttribute("aria-hidden", "true");
-    const count = document.createElement("span");
-    count.className = "post-card__likes-count";
     const errorMessage = document.createElement("p");
     errorMessage.className = "post-card__error";
     errorMessage.setAttribute("role", "alert");
     errorMessage.hidden = true;
-    const renderLike = () => {
-        like.setAttribute("aria-pressed", String(post.likedByDevice));
-        like.setAttribute("aria-label", `${post.likedByDevice ? "Прибрати" : "Поставити"} вподобання. Усього: ${post.likesCount}`);
-        heart.textContent = post.likedByDevice ? "♥" : "♡";
-        count.textContent = String(post.likesCount);
-    };
-    like.append(heart, count);
-    like.addEventListener("click", async () => {
-        if (like.disabled) return;
-        like.disabled = true;
-        errorMessage.hidden = true;
-        try {
-            const result = await apiRequest(`/api/posts/${post.id}/like`, {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ deviceId, liked: !post.likedByDevice }),
-            });
-            Object.assign(post, result);
-            renderLike();
-        } catch (error) {
-            errorMessage.textContent = error.message;
-            errorMessage.hidden = false;
-        } finally {
-            like.disabled = false;
-        }
-    });
-    renderLike();
+    const like = createLikeButton(post, errorMessage);
     meta.append(name, like);
     card.append(meta);
     if (post.comment) {
@@ -573,6 +570,7 @@ async function loadPosts() {
     try {
         const posts = await apiRequest("/api/posts");
         if (version !== galleryVersion) return;
+        galleryPosts = posts.filter((post) => post.photos?.length);
         carouselObservers.forEach((observer) => observer.disconnect());
         carouselObservers.clear();
         galleryColumns.forEach((column) => column.replaceChildren());
@@ -597,6 +595,206 @@ async function loadPosts() {
         if (version === galleryVersion) galleryGrid.setAttribute("aria-busy", "false");
     }
 }
+
+function renderLikeButton(button, post) {
+    button.setAttribute("aria-pressed", String(post.likedByDevice));
+    button.setAttribute("aria-label", `${post.likedByDevice ? "Прибрати" : "Поставити"} вподобання. Усього: ${post.likesCount}`);
+    button.querySelector(".post-card__heart").textContent = post.likedByDevice ? "♥" : "♡";
+    button.querySelector(".post-card__likes-count").textContent = String(post.likesCount);
+    button.disabled = pendingLikes.has(post.id);
+}
+
+function syncLikeButtons(post) {
+    document.querySelectorAll(`[data-like-post="${post.id}"]`).forEach((button) => renderLikeButton(button, post));
+}
+
+function createLikeButton(post, errorMessage) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "post-card__like";
+    button.dataset.likePost = post.id;
+    const heart = document.createElement("span");
+    heart.className = "post-card__heart";
+    heart.setAttribute("aria-hidden", "true");
+    const count = document.createElement("span");
+    count.className = "post-card__likes-count";
+    button.append(heart, count);
+    renderLikeButton(button, post);
+    button.addEventListener("click", async () => {
+        if (pendingLikes.has(post.id)) return;
+        pendingLikes.add(post.id);
+        syncLikeButtons(post);
+        errorMessage.hidden = true;
+        try {
+            const result = await apiRequest(`/api/posts/${post.id}/like`, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ deviceId, liked: !post.likedByDevice }),
+            });
+            Object.assign(post, result);
+        } catch (error) {
+            // A viewer can move to another post while the request is pending.
+            if (button.isConnected) {
+                errorMessage.textContent = error.message;
+                errorMessage.hidden = false;
+            }
+        } finally {
+            pendingLikes.delete(post.id);
+            syncLikeButtons(post);
+        }
+    });
+    return button;
+}
+
+const viewer = document.querySelector("#photo-viewer");
+const viewerStage = document.querySelector("#viewer-stage");
+const viewerImage = document.querySelector("#viewer-image");
+const viewerDots = document.querySelector("#viewer-dots");
+const viewerError = document.querySelector("#viewer-error");
+const viewerPrevious = document.querySelector("#viewer-previous");
+const viewerNext = document.querySelector("#viewer-next");
+let viewerItems = [];
+let viewerIndex = 0;
+let viewerOrigin = null;
+let viewerScroll = 0;
+let previousBodyTop = "";
+let viewerGesture = null;
+const viewerPointers = new Set();
+
+function renderViewer() {
+    const focused = document.activeElement;
+    const hadFocus = viewer.open && viewer.contains(focused);
+    const { post, photoIndex } = viewerItems[viewerIndex];
+    const photo = post.photos[photoIndex];
+    const author = post.isAnonymous ? "анонімно" : post.authorName;
+    viewerStage.classList.toggle("photo-viewer__stage--wide", photo.width > photo.height * 2);
+    viewerImage.width = photo.width;
+    viewerImage.height = photo.height;
+    viewerImage.alt = `${author}: фото ${photoIndex + 1} з ${post.photos.length}`;
+    viewerImage.src = photo.url;
+    document.querySelector("#viewer-author").textContent = author;
+    const comment = document.querySelector("#viewer-comment");
+    comment.textContent = post.comment;
+    comment.hidden = !post.comment;
+    document.querySelector("#viewer-download").href = `/api/photos/${photo.id}/download`;
+    document.querySelector("#viewer-like").replaceChildren(createLikeButton(post, viewerError));
+    viewerError.hidden = true;
+    viewerDots.replaceChildren();
+    // Keep the middle toolbar column even when a post has only one image.
+    viewerDots.hidden = post.photos.length === 1;
+    post.photos.forEach((_, index) => {
+        if (post.photos.length === 1) return;
+        const dot = document.createElement("button");
+        dot.type = "button";
+        dot.className = "post-carousel__dot";
+        dot.setAttribute("aria-label", `Фото ${index + 1} з ${post.photos.length}`);
+        dot.setAttribute("aria-current", String(index === photoIndex));
+        dot.addEventListener("click", () => {
+            viewerIndex += index - photoIndex;
+            renderViewer();
+            viewerDots.children[index].focus({ preventScroll: true });
+        });
+        viewerDots.append(dot);
+    });
+    viewerPrevious.disabled = viewerIndex === 0;
+    viewerNext.disabled = viewerIndex === viewerItems.length - 1;
+    document.querySelector("#viewer-position").textContent = `Фото ${viewerIndex + 1} з ${viewerItems.length}. ${author}`;
+    viewer.scrollTop = 0;
+    if (hadFocus && (!focused.isConnected || focused.disabled)) {
+        document.querySelector("#viewer-close").focus({ preventScroll: true });
+    }
+}
+
+function openViewer(post, photoIndex, origin) {
+    if (viewer.open) return;
+    viewerItems = galleryPosts.flatMap((item) => item.photos.map((_, index) => ({ post: item, photoIndex: index })));
+    viewerIndex = viewerItems.findIndex((item) => item.post.id === post.id && item.photoIndex === photoIndex);
+    if (viewerIndex < 0) return;
+    viewerOrigin = origin;
+    viewerScroll = window.scrollY;
+    previousBodyTop = document.body.style.top;
+    document.body.style.top = `-${viewerScroll}px`;
+    document.body.classList.add("viewer-open");
+    renderViewer();
+    viewer.showModal();
+    document.querySelector("#viewer-close").focus({ preventScroll: true });
+}
+
+function closeViewer() {
+    if (viewer.open) viewer.close();
+}
+
+viewer.addEventListener("close", () => {
+    viewerGesture = null;
+    viewerPointers.clear();
+    viewerStage.style.transform = "";
+    document.body.classList.remove("viewer-open");
+    document.body.style.top = previousBodyTop;
+    window.scrollTo({ top: viewerScroll, behavior: "instant" });
+    viewerOrigin?.focus({ preventScroll: true });
+    viewerItems = [];
+    viewerImage.removeAttribute("src");
+});
+viewer.addEventListener("cancel", (event) => { event.preventDefault(); closeViewer(); });
+document.querySelector("#viewer-close").addEventListener("click", closeViewer);
+function moveViewer(direction) {
+    const next = viewerIndex + direction;
+    if (next < 0 || next >= viewerItems.length) return;
+    viewerIndex = next;
+    renderViewer();
+}
+viewerPrevious.addEventListener("click", () => moveViewer(-1));
+viewerNext.addEventListener("click", () => moveViewer(1));
+viewer.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault();
+        moveViewer(event.key === "ArrowRight" ? 1 : -1);
+    }
+    if (event.key === "Tab") {
+        const controls = [...viewer.querySelectorAll("button:not(:disabled), a[href]")].filter((element) => element.getClientRects().length);
+        const first = controls[0];
+        const last = controls.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+});
+viewerImage.addEventListener("error", () => {
+    if (!viewer.open || !viewerImage.hasAttribute("src")) return;
+    viewerError.textContent = "Не вдалося завантажити фото. Перевірте з’єднання або відкрийте його ще раз.";
+    viewerError.hidden = false;
+});
+viewerStage.addEventListener("pointerdown", (event) => {
+    viewerPointers.add(event.pointerId);
+    if (viewerPointers.size > 1) {
+        viewerGesture = null;
+        viewerStage.style.transform = "";
+        return;
+    }
+    if (event.button !== 0 || event.target.closest("button")) return;
+    viewerGesture = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    viewerStage.setPointerCapture(event.pointerId);
+});
+viewerStage.addEventListener("pointermove", (event) => {
+    if (!viewerGesture || viewerGesture.id !== event.pointerId) return;
+    const dx = event.clientX - viewerGesture.x;
+    const dy = event.clientY - viewerGesture.y;
+    if (dy > 0 && dy > Math.abs(dx) * 1.3) viewerStage.style.transform = `translateY(${Math.min(dy * 0.4, 100)}px)`;
+    else viewerStage.style.transform = "";
+});
+function endViewerGesture(event) {
+    viewerPointers.delete(event.pointerId);
+    const gesture = viewerGesture;
+    if (!gesture || gesture.id !== event.pointerId) return;
+    viewerGesture = null;
+    viewerStage.style.transform = "";
+    if (event.type !== "pointerup") return;
+    const dx = event.clientX - gesture.x;
+    const dy = event.clientY - gesture.y;
+    if (dy > 70 && dy > Math.abs(dx) * 1.3) closeViewer();
+    else if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.3) moveViewer(dx < 0 ? 1 : -1);
+}
+viewerStage.addEventListener("pointerup", endViewerGesture);
+viewerStage.addEventListener("pointercancel", endViewerGesture);
+viewerStage.addEventListener("lostpointercapture", endViewerGesture);
 
 galleryRetry.addEventListener("click", loadPosts);
 

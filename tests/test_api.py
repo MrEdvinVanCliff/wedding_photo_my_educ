@@ -70,6 +70,21 @@ class AlbumTests(unittest.TestCase):
         self.assertEqual(restored["likesCount"], 1)
         self.assertTrue(restored["likedByDevice"])
 
+    def test_download_returns_original_as_attachment(self):
+        original = picture((80, 160))
+        post = self.upload(files=[("photos", ("phone.png", original, "image/png"))]).json()
+        photo = post["photos"][0]
+        response = self.client.get(f'/api/photos/{photo["id"]}/download')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, original)
+        self.assertIn("attachment;", response.headers["content-disposition"])
+        self.assertIn(f'wedding-{photo["id"]}.png', response.headers["content-disposition"])
+        self.assertEqual(response.headers["content-type"], "application/octet-stream")
+        self.assertEqual(self.client.get(f"/api/photos/{uuid4()}/download").status_code, 404)
+        self.assertEqual(self.client.get("/api/photos/invalid/download").status_code, 422)
+        (self.storage / photo["originalUrl"].lstrip("/")).unlink()
+        self.assertEqual(self.client.get(f'/api/photos/{photo["id"]}/download').status_code, 404)
+
     def test_anonymous_discards_author_and_comment_is_optional(self):
         response = self.upload(data={"isAnonymous": "true", "authorName": "Приховане ім’я"})
         self.assertEqual(response.status_code, 201)
