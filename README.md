@@ -1,14 +1,16 @@
-# Весільний альбом — локальна галерея
+# Весільний альбом
 
-Наявні HTML, CSS та JavaScript обслуговує FastAPI. Публікації й лайки зберігаються в SQLite, фотографії — на MacBook. Збирання фронтенду та cloud storage не потрібні.
+Наявні HTML, CSS та JavaScript обслуговує FastAPI. Локально публікації й лайки зберігаються в SQLite, фотографії — на диску. Хмарний режим використовує PostgreSQL Supabase і Cloudflare R2 та працює незалежно від MacBook. Збирання фронтенду не потрібне.
+
+**Публікація онлайн:** покрокова інструкція у [DEPLOY.md](DEPLOY.md), конфігурація Render Free — `render.yaml`. Хмарний режим вимагає `WEDDING_BACKEND=cloud` і серверних секретів із `.env.example`. Публікація потребує налаштування акаунтів; сама наявність цих файлів сайт онлайн не запускає.
 
 ## Перший запуск на MacBook
 
 У Terminal:
 
 ```sh
-cd /Users/user/Desktop/wedding/testWeddingWeb
-python3 -m venv .venv
+cd /Users/slavikfedorets/Desktop/wedding_gallary
+python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload

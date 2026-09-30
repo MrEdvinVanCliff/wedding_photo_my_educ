@@ -11,7 +11,7 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pillow_heif import register_heif_opener
@@ -36,9 +36,27 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     uploads = storage / "uploads"
     data = storage / "data"
     database = data / "wedding.sqlite3"
+    # Explicit storage_dir isolates local tests from deployment credentials.
+    cloud_mode = storage_dir is None and os.environ.get("WEDDING_BACKEND", "local") == "cloud"
+    cloud_photos = None
+    if cloud_mode:
+        from cloud import CloudPhotos, initialize_postgres, postgres_connection
+        required = ("DATABASE_URL", "R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET")
+        missing = [name for name in required if not os.environ.get(name)]
+        if missing:
+            raise RuntimeError("Missing cloud settings: " + ", ".join(missing))
+        database_url = os.environ["DATABASE_URL"]
+        cloud_photos = CloudPhotos(os.environ["R2_ACCOUNT_ID"], os.environ["R2_ACCESS_KEY_ID"],
+                                   os.environ["R2_SECRET_ACCESS_KEY"], os.environ["R2_BUCKET"])
+    elif storage_dir is None and (os.environ.get("RENDER") or os.environ.get("WEDDING_BACKEND", "local") != "local"):
+        raise RuntimeError("Set WEDDING_BACKEND=cloud with all credentials; local storage is unsafe on Render")
 
     @contextmanager
     def connection():
+        if cloud_mode:
+            with postgres_connection(database_url) as db:
+                yield db
+            return
         db = sqlite3.connect(database, timeout=30)
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA foreign_keys = ON")
@@ -55,8 +73,12 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     async def lifespan(_app):
         data.mkdir(parents=True, exist_ok=True)
         uploads.mkdir(parents=True, exist_ok=True)
+        if cloud_mode:
+            initialize_postgres(database_url)
+            cloud_photos.check_bucket()
         with connection() as db:
-            db.execute("PRAGMA journal_mode = WAL")
+            if not cloud_mode:
+                db.execute("PRAGMA journal_mode = WAL")
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS posts (
                     id TEXT PRIMARY KEY,
@@ -91,6 +113,36 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
 
     app = FastAPI(title="Весільний альбом", lifespan=lifespan)
 
+    @app.get("/healthz", include_in_schema=False)
+    def health():
+        with connection() as db:
+            db.execute("SELECT 1")
+        return {"status": "ok"}
+
+    def photo_url(filename):
+        return f"/media/{filename}" if cloud_mode else f"/uploads/{filename}"
+
+    if cloud_mode:
+        @app.get("/media/{filename}", include_in_schema=False)
+        def cloud_image(filename: str):
+            # Stable URLs keep lazy-loaded images working after signed URLs expire.
+            with connection() as db:
+                found = db.execute(
+                    "SELECT id FROM photos WHERE original_file = ? OR display_file = ? OR thumbnail_file = ?",
+                    (filename, filename, filename),
+                ).fetchone()
+            if not found:
+                raise HTTPException(404, "Фотографію не знайдено.")
+            return RedirectResponse(cloud_photos.url(filename), status_code=302,
+                                    headers={"Cache-Control": "no-store"})
+
+    def lock_write(db, key):
+        if cloud_mode:
+            # Serialize retries for the same submission/post across server processes.
+            db.execute("SELECT pg_advisory_xact_lock(hashtext(?))", (key,))
+        else:
+            db.execute("BEGIN IMMEDIATE")
+
     def read_posts(db, device_id="", post_id=None):
         sql = """
             SELECT p.*, (SELECT COUNT(*) FROM likes WHERE post_id = p.id) AS likes_count,
@@ -116,9 +168,9 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         for photo in db.execute(photo_sql, photo_params):
             grouped.setdefault(photo["post_id"], []).append({
                 "id": photo["id"],
-                "url": f'/uploads/{photo["display_file"]}',
-                "thumbnailUrl": f'/uploads/{photo["thumbnail_file"]}',
-                "originalUrl": f'/uploads/{photo["original_file"]}',
+                "url": photo_url(photo["display_file"]),
+                "thumbnailUrl": photo_url(photo["thumbnail_file"]),
+                "originalUrl": photo_url(photo["original_file"]),
                 "width": photo["width"],
                 "height": photo["height"],
                 "thumbnailWidth": photo["thumbnail_width"],
@@ -188,7 +240,11 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     def download_photo(photo_id: UUID):
         with connection() as db:
             photo = db.execute("SELECT original_file FROM photos WHERE id = ?", (str(photo_id),)).fetchone()
-        if not photo or not (uploads / photo["original_file"]).is_file():
+        if not photo:
+            raise HTTPException(404, "Фотографію не знайдено.")
+        if cloud_mode:
+            return RedirectResponse(cloud_photos.url(photo["original_file"], download=True), status_code=302)
+        if not (uploads / photo["original_file"]).is_file():
             raise HTTPException(404, "Фотографію не знайдено.")
         path = uploads / photo["original_file"]
         return FileResponse(path, media_type="application/octet-stream",
@@ -223,13 +279,14 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
 
         post_id = str(uuid4())
         moved = []
+        remote_files = []
         try:
             # Validate the entire batch before making any post or public file visible.
             with TemporaryDirectory(prefix="upload-", dir=data) as temporary:
                 staging = Path(temporary)
                 prepared = [prepare_photo(photo, staging) for photo in photos]
                 with connection() as db:
-                    db.execute("BEGIN IMMEDIATE")
+                    lock_write(db, "submission:" + submission_id)
                     existing = db.execute("SELECT id FROM posts WHERE submission_id = ?", (submission_id,)).fetchone()
                     if existing:
                         return read_posts(db, device_id, existing["id"])[0]
@@ -241,15 +298,22 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
                     for position, photo in enumerate(prepared):
                         photo_id, original, display, thumbnail, width, height, thumb_width = photo
                         for filename in (original, display, thumbnail):
-                            destination = uploads / filename
-                            shutil.move(staging / filename, destination)
-                            moved.append(destination)
+                            if cloud_mode:
+                                # Track before sending: a timed-out request may have stored the object.
+                                remote_files.append(filename)
+                                cloud_photos.upload(staging / filename)
+                            else:
+                                destination = uploads / filename
+                                shutil.move(staging / filename, destination)
+                                moved.append(destination)
                         db.execute("INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (
                             photo_id, post_id, position, original, display, thumbnail, width, height, thumb_width,
                         ))
                     result = read_posts(db, device_id, post_id)[0]
             return result
         except Exception:
+            if cloud_mode:
+                cloud_photos.delete(remote_files)
             for path in moved:
                 path.unlink(missing_ok=True)
             raise
@@ -261,16 +325,16 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     def like_post(post_id: UUID, payload: LikeRequest):
         post_id, device_id = str(post_id), str(payload.deviceId)
         with connection() as db:
-            db.execute("BEGIN IMMEDIATE")
+            lock_write(db, "like:" + post_id)
             if not db.execute("SELECT 1 FROM posts WHERE id = ?", (post_id,)).fetchone():
                 raise HTTPException(404, "Публікацію не знайдено.")
             was_liked = bool(db.execute("SELECT 1 FROM likes WHERE post_id = ? AND device_id = ?", (post_id, device_id)).fetchone())
             liked = not was_liked if payload.liked is None else payload.liked
             if liked:
-                db.execute("INSERT OR IGNORE INTO likes VALUES (?, ?)", (post_id, device_id))
+                db.execute("INSERT INTO likes VALUES (?, ?) ON CONFLICT (post_id, device_id) DO NOTHING", (post_id, device_id))
             else:
                 db.execute("DELETE FROM likes WHERE post_id = ? AND device_id = ?", (post_id, device_id))
-            count = db.execute("SELECT COUNT(*) FROM likes WHERE post_id = ?", (post_id,)).fetchone()[0]
+            count = db.execute("SELECT COUNT(*) AS count FROM likes WHERE post_id = ?", (post_id,)).fetchone()["count"]
             return {"id": post_id, "likesCount": count, "likedByDevice": liked}
 
     @app.middleware("http")
@@ -299,7 +363,8 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
 
     # Do not mount the repository root: SQLite, .git and configuration stay private.
     app.mount("/assets", StaticFiles(directory=BASE_DIR / "assets"), name="assets")
-    app.mount("/uploads", StaticFiles(directory=uploads, check_dir=False), name="uploads")
+    if not cloud_mode:
+        app.mount("/uploads", StaticFiles(directory=uploads, check_dir=False), name="uploads")
     return app
 
 

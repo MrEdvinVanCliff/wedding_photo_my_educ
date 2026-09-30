@@ -298,6 +298,8 @@ function renderPhotoPreview() {
         fragment.append(item);
     });
 
+
+    
     if (currentUploadMode === "standard" && selectedFiles.length > 0 && selectedFiles.length < MAX_PHOTOS) {
         const addButton = document.createElement("button");
         addButton.className = "photo-preview__add";

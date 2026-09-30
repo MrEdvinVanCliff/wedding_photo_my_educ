@@ -3,3 +3,5 @@ uvicorn==0.53.0
 python-multipart==0.0.32
 Pillow==12.3.0
 pillow-heif==1.7.0
+psycopg[binary]>=3.2,<4
+boto3>=1.36,<2
