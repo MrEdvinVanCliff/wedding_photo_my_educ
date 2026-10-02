@@ -205,6 +205,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
 
         try:
             with Image.open(raw_path) as source:
+                is_heif = source.format == "HEIF"
                 extension = FORMATS.get(source.format)
                 if not extension:
                     raise HTTPException(422, "Підтримуються JPG, PNG, WebP, GIF, AVIF та HEIC/HEIF.")
@@ -215,11 +216,18 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
                 source.load()
                 with ImageOps.exif_transpose(source) as oriented:
                     image = oriented.convert("RGBA" if "A" in oriented.getbands() or "transparency" in oriented.info else "RGB")
-            original_file = f"{photo_id}{extension}"
-            raw_path.rename(staging / original_file)
+            original_file = f"{photo_id}{'.jpg' if is_heif else extension}"
+            if not is_heif:
+                raw_path.rename(staging / original_file)
             display_file = f"{photo_id}-display.webp"
             thumbnail_file = f"{photo_id}-thumb.webp"
             with image:
+                if is_heif:
+                    # Normalize the full-resolution original before making gallery copies.
+                    with Image.new("RGB", image.size, "white") as jpeg:
+                        jpeg.paste(image, mask=image.getchannel("A") if image.mode == "RGBA" else None)
+                        jpeg.save(staging / original_file, "JPEG", quality=90, exif=b"")
+                    raw_path.unlink()
                 image.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
                 width, height = image.size
                 # The original is retained; the gallery gets smaller, metadata-free files.
@@ -232,6 +240,22 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
             raise
         except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as error:
             raise HTTPException(422, "Не вдалося прочитати фото. Перевірте файл або виберіть інше зображення.") from error
+
+    @app.post("/api/photos/normalize")
+    def normalize_photo(photo: Annotated[UploadFile, File()]):
+        try:
+            with TemporaryDirectory(prefix="normalize-", dir=data) as temporary:
+                staging = Path(temporary)
+                prepared = prepare_photo(photo, staging)
+                path = staging / prepared[1]
+                if path.stat().st_size > MAX_FILE_BYTES:
+                    raise HTTPException(413, "Після конвертації фото перевищує 10 МБ. Виберіть зменшену копію.")
+                content = path.read_bytes()
+                with Image.open(path) as normalized:
+                    media_type = Image.MIME.get(normalized.format, "application/octet-stream")
+            return Response(content, media_type=media_type, headers={"Cache-Control": "no-store"})
+        finally:
+            photo.file.close()
 
     @app.post("/api/photos/process")
     def process_photo(photo: Annotated[UploadFile, File()], photoStyle: Annotated[str, Form()]):

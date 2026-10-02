@@ -154,6 +154,32 @@ class AlbumTests(unittest.TestCase):
         response = self.upload(files=[("photos", ("phone.heic", picture((90, 120), "HEIF"), "image/heic"))])
         self.assertEqual(response.status_code, 201, response.text)
         self.assertTrue(response.json()["photos"][0]["url"].endswith(".webp"))
+        converted = response.json()["photos"][0]
+        self.assertTrue(converted["originalUrl"].endswith(".jpg"))
+        with Image.open(BytesIO(self.client.get(converted["originalUrl"]).content)) as image:
+            self.assertEqual(image.format, "JPEG")
+            self.assertEqual(image.size, (90, 120))
+
+    def test_heif_normalization_orientation_and_invalid_content(self):
+        from PIL import ImageOps
+        exif = Image.Exif()
+        exif[274] = 6
+        raw = picture((60, 100), "HEIF", exif)
+        with Image.open(BytesIO(raw)) as source, ImageOps.exif_transpose(source) as oriented:
+            expected_size = oriented.size
+        response = self.client.post("/api/photos/normalize", files={
+            "photo": ("icloud.HEIF", raw, "application/octet-stream")})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.headers["content-type"], "image/jpeg")
+        with Image.open(BytesIO(response.content)) as image:
+            self.assertEqual(image.size, expected_size)
+            self.assertNotIn(274, image.getexif())
+        self.assertEqual(self.posts(), [])
+        self.assertEqual(list((self.storage / "uploads").iterdir()), [])
+        self.assertFalse(list((self.storage / "data").glob("normalize-*")))
+        bad = self.client.post("/api/photos/normalize", files={
+            "photo": ("fake.heic", b"not a photo", "image/heic")})
+        self.assertEqual(bad.status_code, 422)
 
     def test_untrusted_filenames_and_private_files(self):
         response = self.upload(files=[("photos", ("../../attack.html", picture(), "text/html"))])

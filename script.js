@@ -140,6 +140,9 @@ photoStyles.addEventListener("change", () => {
     const photo = modeSelections.advanced[0];
     if (photo?.processedFile) {
         URL.revokeObjectURL(photo.processedPreviewUrl);
+        URL.revokeObjectURL(photo.processedUrl);
+        photo.processedUrl = null;
+        photo.status = "ready";
         delete photo.processedFile;
         delete photo.processedPreviewUrl;
     }
@@ -150,9 +153,59 @@ photoStyles.addEventListener("change", () => {
 });
 processButton.addEventListener("click", processSelectedPhoto);
 
+const uploadPreviewDialog = document.querySelector("#upload-preview-dialog");
+const uploadPreviewImage = document.querySelector("#upload-preview-image");
+const uploadPreviewStatus = document.querySelector("#upload-preview-status");
+let activePreviewPhoto = null;
+let previewScroll = 0;
+let previewBodyTop = "";
+
+function syncUploadPreview() {
+    if (!activePreviewPhoto || !uploadPreviewDialog.open) return;
+    const photo = activePreviewPhoto;
+    uploadPreviewImage.src = photo.processedUrl || photo.originalUrl;
+    uploadPreviewImage.alt = photo.processedUrl ? "Оброблена фотографія" : "Вибрана фотографія";
+    uploadPreviewStatus.textContent = photo.status === "processing" ? "Обробляється…" : "";
+}
+
+function openUploadPreview(photo) {
+    activePreviewPhoto = photo;
+    previewScroll = window.scrollY;
+    previewBodyTop = document.body.style.top;
+    document.body.style.top = `-${previewScroll}px`;
+    document.body.classList.add("upload-preview-open");
+    uploadPreviewDialog.showModal();
+    syncUploadPreview();
+}
+
+function closeUploadPreview() {
+    if (uploadPreviewDialog.open) uploadPreviewDialog.close();
+}
+
+uploadPreviewDialog.querySelector("button").addEventListener("click", closeUploadPreview);
+uploadPreviewDialog.addEventListener("click", (event) => {
+    if (event.target === uploadPreviewDialog) closeUploadPreview();
+});
+uploadPreviewDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeUploadPreview();
+});
+uploadPreviewDialog.addEventListener("close", () => {
+    activePreviewPhoto = null;
+    uploadPreviewImage.removeAttribute("src");
+    document.body.classList.remove("upload-preview-open");
+    document.body.style.top = previewBodyTop;
+    window.scrollTo({ top: previewScroll, behavior: "instant" });
+});
+
+function isHeif(file) {
+    return /\.(heic|heif)$/i.test(file.name) || /^image\/(heic|heif)(-sequence)?$/i.test(file.type);
+}
+
 function validatePhoto(file) {
     const hasSupportedExtension = /\.(jpe?g|png|webp|gif|avif|heic|heif)$/i.test(file.name);
-    if (!SUPPORTED_TYPES.has(file.type) && !(file.type === "" && hasSupportedExtension)) {
+    if (!SUPPORTED_TYPES.has(file.type) && !isHeif(file)
+        && !(["", "application/octet-stream"].includes(file.type) && hasSupportedExtension)) {
         return `«${file.name}»: виберіть JPG, PNG, WebP, GIF, AVIF або HEIC.`;
     }
     if (!file.size) return `«${file.name}»: файл порожній.`;
@@ -180,10 +233,6 @@ async function createPhotoPreview(file) {
         if (!thumbnail) throw new Error("Не вдалося створити попередній перегляд.");
         return URL.createObjectURL(thumbnail);
     } catch (error) {
-        // Many phone browsers cannot decode HEIC. The server validates it and
-        // creates a WebP for the gallery; show a placeholder until then.
-        if (error.name === "EncodingError" && (/\.(heic|heif)$/i.test(file.name)
-            || ["image/heic", "image/heif"].includes(file.type))) return "assets/empty_photo.webp";
         throw error;
     } finally {
         image.removeAttribute("src");
@@ -200,6 +249,7 @@ function syncBusyState() {
     const busy = isSelecting || isUploading || isProcessing;
     uploadForm.setAttribute("aria-busy", String(busy));
     uploadForm.querySelectorAll("button, input").forEach((control) => { control.disabled = busy; });
+    photoPreview.querySelectorAll(".photo-preview__open").forEach((button) => { button.disabled = false; });
     nameInput.disabled = busy || anonymousCheckbox.checked;
     photoStyles.disabled = busy || currentUploadMode !== "advanced";
     const needsProcessing = currentUploadMode === "advanced" && !modeSelections.advanced[0]?.processedFile;
@@ -224,7 +274,8 @@ async function handleFileSelection(event) {
     const errors = new Set();
 
     try {
-        for (const file of (isAdvanced ? files.slice(0, 1) : files)) {
+        for (let file of (isAdvanced ? files.slice(0, 1) : files)) {
+            const sourceKey = `${file.name}:${file.size}:${file.lastModified}`;
             if (!isAdvanced && selectedFiles.length >= MAX_PHOTOS) {
                 errors.add(`Можна вибрати не більше ${MAX_PHOTOS} фото.`);
                 break;
@@ -234,15 +285,23 @@ async function handleFileSelection(event) {
                 errors.add(error);
                 continue;
             }
-            if (!isAdvanced && selectedFiles.some((photo) => photo.file.name === file.name
-                && photo.file.size === file.size && photo.file.lastModified === file.lastModified)) {
+            if (!isAdvanced && selectedFiles.some((photo) => photo.sourceKey === sourceKey)) {
                 errors.add(`«${file.name}» уже вибрано.`);
                 continue;
             }
             try {
+                if (isHeif(file)) {
+                    setUploadStatus("Конвертуємо фото з iPhone…");
+                    const data = new FormData();
+                    data.append("photo", file);
+                    const blob = await apiRequest("/api/photos/normalize", { method: "POST", body: data }, true);
+                    file = new File([blob], file.name.replace(/\.(heic|heif)$/i, "") + ".jpg",
+                        { type: blob.type, lastModified: file.lastModified });
+                }
                 const previewUrl = await createPhotoPreview(file);
                 if (isAdvanced) clearSelectedPhotos(selectedFiles);
-                selectedFiles.push({ id: ++nextPhotoId, file, previewUrl });
+                selectedFiles.push({ id: ++nextPhotoId, file, sourceKey, previewUrl,
+                    originalUrl: URL.createObjectURL(file), processedUrl: null, status: "ready" });
             } catch (error) {
                 errors.add(`«${file.name}»: ${error.name === "EncodingError"
                     ? "не вдалося прочитати зображення. Перевірте файл або виберіть JPG чи PNG."
@@ -260,7 +319,10 @@ async function handleFileSelection(event) {
 }
 
 function clearSelectedPhotos(photos) {
+    if (photos.includes(activePreviewPhoto)) closeUploadPreview();
     photos.forEach((photo) => {
+        URL.revokeObjectURL(photo.originalUrl);
+        if (photo.processedUrl) URL.revokeObjectURL(photo.processedUrl);
         URL.revokeObjectURL(photo.previewUrl);
         if (photo.processedPreviewUrl) URL.revokeObjectURL(photo.processedPreviewUrl);
     });
@@ -273,6 +335,9 @@ function removeSelectedPhoto(id) {
     const photos = modeSelections[currentUploadMode];
     const index = photos.findIndex((photo) => photo.id === id);
     if (index === -1) return;
+    if (activePreviewPhoto === photos[index]) closeUploadPreview();
+    URL.revokeObjectURL(photos[index].originalUrl);
+    if (photos[index].processedUrl) URL.revokeObjectURL(photos[index].processedUrl);
     URL.revokeObjectURL(photos[index].previewUrl);
     if (photos[index].processedPreviewUrl) URL.revokeObjectURL(photos[index].processedPreviewUrl);
     photos.splice(index, 1);
@@ -308,16 +373,20 @@ function renderPhotoPreview() {
         removeButton.textContent = "×";
         removeButton.addEventListener("click", () => removeSelectedPhoto(photo.id));
 
+        const viewButton = document.createElement("button");
+        viewButton.type = "button";
+        viewButton.className = "photo-preview__open";
+        viewButton.setAttribute("aria-label", `Переглянути ${photo.file.name}`);
+        viewButton.append(image);
+        viewButton.addEventListener("click", () => openUploadPreview(photo));
+        item.append(viewButton, removeButton);
         if (currentUploadMode === "advanced") {
             const replaceButton = document.createElement("button");
             replaceButton.type = "button";
             replaceButton.className = "photo-preview__replace";
-            replaceButton.setAttribute("aria-label", "Замінити фото");
-            replaceButton.append(image);
+            replaceButton.textContent = "замінити фото";
             replaceButton.addEventListener("click", choosePhotos);
-            item.append(replaceButton, removeButton);
-        } else {
-            item.append(image, removeButton);
+            item.append(replaceButton);
         }
         fragment.append(item);
     });
@@ -339,6 +408,7 @@ function renderPhotoPreview() {
     photoCount.hidden = selectedFiles.length === 0;
     photoCount.textContent = selectedFiles.length ? `вибрано ${selectedFiles.length} фото з ${limit}` : "";
     syncBusyState();
+    syncUploadPreview();
 }
 
 async function processSelectedPhoto() {
@@ -349,6 +419,8 @@ async function processSelectedPhoto() {
     data.append("photo", photo.file);
     data.append("photoStyle", uploadForm.elements.photoStyle.value);
     isProcessing = true;
+    photo.status = "processing";
+    syncUploadPreview();
     setPhotoError();
     setUploadStatus("Обробляємо фото… Це може зайняти кілька хвилин. Залиште сторінку відкритою.");
     syncBusyState();
@@ -356,16 +428,19 @@ async function processSelectedPhoto() {
         const blob = await apiRequest("/api/photos/process", { method: "POST", body: data }, true);
         const processedFile = new File([blob], "wedding-processed.jpg", { type: "image/jpeg" });
         const previewUrl = await createPhotoPreview(processedFile);
+        photo.processedUrl = URL.createObjectURL(processedFile);
+        photo.status = "processed";
         photo.processedFile = processedFile;
         photo.processedPreviewUrl = previewUrl;
         submissionId = null;
         setUploadStatus("Фото оброблено. Перевірте прев’ю й натисніть «завантажити», щоб додати його в альбом.");
     } catch (error) {
+        photo.status = "error";
         setUploadStatus(error.message);
     } finally {
         isProcessing = false;
         renderPhotoPreview();
-        if (modal.open) (photo.processedFile ? submitButton : processButton).focus({ preventScroll: true });
+        if (modal.open && !uploadPreviewDialog.open) (photo.processedFile ? submitButton : processButton).focus({ preventScroll: true });
     }
 }
 
@@ -452,7 +527,7 @@ async function apiRequest(url, options = {}, imageResponse = false) {
         });
     } catch {
         throw new Error(imageResponse
-            ? "Втрачено зв’язок із сервером. Результат не отримано; повторне натискання запустить нову обробку."
+            ? "Втрачено зв’язок із сервером. Результат не отримано; спробуйте ще раз."
             : "Немає зв’язку із сервером. Перевірте інтернет і спробуйте ще раз.");
     }
     if (response.ok && imageResponse) {

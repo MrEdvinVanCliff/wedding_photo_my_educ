@@ -115,6 +115,11 @@
             </div>
         </div>
     </dialog>
+    <dialog class="upload-preview-dialog" id="upload-preview-dialog" aria-label="Перегляд вибраного фото">
+        <button class="upload-preview-dialog__close" type="button" aria-label="Закрити перегляд" autofocus>×</button>
+        <img id="upload-preview-image" alt="" draggable="false">
+        <p id="upload-preview-status" role="status" aria-live="polite"></p>
+    </dialog>
     <dialog class="photo-viewer" id="photo-viewer" aria-label="Перегляд фотографій" aria-describedby="viewer-hint">
         <p class="visually-hidden" id="viewer-hint">Гортайте ліворуч до наступного фото, праворуч — до попереднього. Свайп униз або Escape повертає до галереї.</p>
         <div class="photo-viewer__content">

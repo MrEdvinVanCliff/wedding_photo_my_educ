@@ -471,7 +471,7 @@ body.modal-open {
 .is-advanced .photo-picker__text_subtitle { font-size: 11px; }
 .is-advanced .photo-picker__icon_empty { height: 44px; }
 
-.photo-preview__replace {
+.photo-preview__open {
     display: block;
     width: 100%;
     height: 100%;
@@ -964,3 +964,27 @@ body.viewer-open { position: fixed; width: 100%; overflow: hidden; }
 .photo-viewer__author { font-size: 16px; font-weight: 700; margin: 14px 10px 0; overflow-wrap: anywhere; }
 .photo-viewer__comment { font-size: 14px; line-height: 1.5; margin: 8px 10px 0; overflow-wrap: anywhere; }
 .photo-viewer #viewer-error { margin: 8px 10px; }
+
+/* Upload preview is a separate top-layer dialog, above the upload form. */
+.photo-preview__open:focus-visible { outline: 3px solid var(--name-field-border); outline-offset: -4px; }
+.photo-preview__replace {
+    position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+    border: 0; border-radius: 20px; padding: 10px 16px; min-height: 44px;
+    color: #fff; background: rgba(0, 0, 0, .75); cursor: pointer; white-space: nowrap;
+}
+body.upload-preview-open { position: fixed; width: 100%; overflow: hidden; }
+.upload-preview-dialog {
+    position: fixed; inset: 0; margin: 0; width: 100%; height: 100%; height: 100dvh;
+    max-width: none; max-height: none; padding: 64px 12px; border: 0;
+    box-sizing: border-box; background: transparent; color: white;
+    overflow: hidden; overscroll-behavior: contain;
+}
+.upload-preview-dialog[open] { display: flex; align-items: center; justify-content: center; }
+.upload-preview-dialog::backdrop { background: rgba(0, 0, 0, .9); }
+.upload-preview-dialog img { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; }
+.upload-preview-dialog__close {
+    position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right));
+    width: 44px; height: 44px; border: 0; border-radius: 50%; color: #fff;
+    background: rgba(30, 30, 30, .85); font: 32px/1 Arial, sans-serif; cursor: pointer;
+}
+#upload-preview-status { position: absolute; bottom: max(16px, env(safe-area-inset-bottom)); text-align: center; }
