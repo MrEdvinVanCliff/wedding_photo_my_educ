@@ -22,6 +22,6 @@ services:
       - key: R2_SECRET_ACCESS_KEY
         sync: false
       - key: R2_BUCKET
-        value: wedding-photos
+        value: weddinggallary
       - key: OPENAI_IMAGE_MODEL
         value: gpt-image-2.5-sunburst
