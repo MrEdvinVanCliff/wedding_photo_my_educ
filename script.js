@@ -19,6 +19,7 @@ const photoError = document.querySelector("#photo-error");
 const photoCount = document.querySelector("#photo-count");
 const uploadStatus = document.querySelector("#upload-status");
 const submitButton = uploadForm.querySelector('[type="submit"]');
+const processButton = document.querySelector("#process-photo");
 const galleryGrid = document.querySelector("#gallery-grid");
 const galleryColumns = [document.querySelector("#gallery-left"), document.querySelector("#gallery-right")];
 const galleryStatus = document.querySelector("#gallery-status");
@@ -33,6 +34,7 @@ let currentUploadMode = "standard";
 let nextPhotoId = 0;
 let isSelecting = false;
 let isUploading = false;
+let isProcessing = false;
 let submissionId = null;
 let galleryVersion = 0;
 const carouselObservers = new Set();
@@ -128,12 +130,25 @@ function setUploadStatus(message = "") {
 }
 
 function choosePhotos() {
-    if (!isSelecting && !isUploading) photoInput.click();
+    if (!isSelecting && !isUploading && !isProcessing) photoInput.click();
 }
 
 photoPlaceholder.addEventListener("click", choosePhotos);
 photoInput.addEventListener("change", handleFileSelection);
 uploadModes.forEach((input) => input.addEventListener("change", syncUploadMode));
+photoStyles.addEventListener("change", () => {
+    const photo = modeSelections.advanced[0];
+    if (photo?.processedFile) {
+        URL.revokeObjectURL(photo.processedPreviewUrl);
+        delete photo.processedFile;
+        delete photo.processedPreviewUrl;
+    }
+    submissionId = null;
+    setPhotoError();
+    setUploadStatus();
+    renderPhotoPreview();
+});
+processButton.addEventListener("click", processSelectedPhoto);
 
 function validatePhoto(file) {
     const hasSupportedExtension = /\.(jpe?g|png|webp|gif|avif|heic|heif)$/i.test(file.name);
@@ -182,18 +197,23 @@ function setSelectionBusy(busy) {
 }
 
 function syncBusyState() {
-    const busy = isSelecting || isUploading;
+    const busy = isSelecting || isUploading || isProcessing;
     uploadForm.setAttribute("aria-busy", String(busy));
     uploadForm.querySelectorAll("button, input").forEach((control) => { control.disabled = busy; });
     nameInput.disabled = busy || anonymousCheckbox.checked;
     photoStyles.disabled = busy || currentUploadMode !== "advanced";
+    const needsProcessing = currentUploadMode === "advanced" && !modeSelections.advanced[0]?.processedFile;
+    processButton.hidden = !needsProcessing;
+    processButton.disabled = busy || !modeSelections.advanced.length;
+    processButton.textContent = isProcessing ? "обробляємо…" : "обробити";
+    submitButton.hidden = needsProcessing;
     submitButton.textContent = isUploading ? "завантажуємо…" : "завантажити";
 }
 
 async function handleFileSelection(event) {
     const files = Array.from(event.target.files);
     photoInput.value = "";
-    if (!files.length || isSelecting || isUploading) return;
+    if (!files.length || isSelecting || isUploading || isProcessing) return;
     submissionId = null;
 
     setPhotoError();
@@ -240,17 +260,21 @@ async function handleFileSelection(event) {
 }
 
 function clearSelectedPhotos(photos) {
-    photos.forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
+    photos.forEach((photo) => {
+        URL.revokeObjectURL(photo.previewUrl);
+        if (photo.processedPreviewUrl) URL.revokeObjectURL(photo.processedPreviewUrl);
+    });
     photos.length = 0;
 }
 
 function removeSelectedPhoto(id) {
-    if (isSelecting || isUploading) return;
+    if (isSelecting || isUploading || isProcessing) return;
     submissionId = null;
     const photos = modeSelections[currentUploadMode];
     const index = photos.findIndex((photo) => photo.id === id);
     if (index === -1) return;
     URL.revokeObjectURL(photos[index].previewUrl);
+    if (photos[index].processedPreviewUrl) URL.revokeObjectURL(photos[index].processedPreviewUrl);
     photos.splice(index, 1);
     setPhotoError();
     setUploadStatus();
@@ -273,8 +297,8 @@ function renderPhotoPreview() {
         const item = document.createElement("div");
         item.className = "photo-preview__item";
         const image = document.createElement("img");
-        image.src = photo.previewUrl;
-        image.alt = photo.file.name;
+        image.src = photo.processedPreviewUrl || photo.previewUrl;
+        image.alt = photo.processedFile ? "Фото після обробки" : photo.file.name;
         image.decoding = "async";
     image.draggable = false;
         const removeButton = document.createElement("button");
@@ -314,6 +338,35 @@ function renderPhotoPreview() {
     const limit = currentUploadMode === "advanced" ? 1 : MAX_PHOTOS;
     photoCount.hidden = selectedFiles.length === 0;
     photoCount.textContent = selectedFiles.length ? `вибрано ${selectedFiles.length} фото з ${limit}` : "";
+    syncBusyState();
+}
+
+async function processSelectedPhoto() {
+    if (isSelecting || isUploading || isProcessing || currentUploadMode !== "advanced") return;
+    const photo = modeSelections.advanced[0];
+    if (!photo || photo.processedFile) return;
+    const data = new FormData();
+    data.append("photo", photo.file);
+    data.append("photoStyle", uploadForm.elements.photoStyle.value);
+    isProcessing = true;
+    setPhotoError();
+    setUploadStatus("Обробляємо фото… Це може зайняти кілька хвилин. Залиште сторінку відкритою.");
+    syncBusyState();
+    try {
+        const blob = await apiRequest("/api/photos/process", { method: "POST", body: data }, true);
+        const processedFile = new File([blob], "wedding-processed.jpg", { type: "image/jpeg" });
+        const previewUrl = await createPhotoPreview(processedFile);
+        photo.processedFile = processedFile;
+        photo.processedPreviewUrl = previewUrl;
+        submissionId = null;
+        setUploadStatus("Фото оброблено. Перевірте прев’ю й натисніть «завантажити», щоб додати його в альбом.");
+    } catch (error) {
+        setUploadStatus(error.message);
+    } finally {
+        isProcessing = false;
+        renderPhotoPreview();
+        if (modal.open) (photo.processedFile ? submitButton : processButton).focus({ preventScroll: true });
+    }
 }
 
 function syncUploadMode() {
@@ -332,11 +385,16 @@ function syncUploadMode() {
 
 uploadForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (isSelecting || isUploading) return;
+    if (isSelecting || isUploading || isProcessing) return;
     const photos = modeSelections[currentUploadMode];
     if (!photos.length) {
         setPhotoError("Спочатку виберіть хоча б одне фото.");
         photoPlaceholder.focus();
+        return;
+    }
+    if (currentUploadMode === "advanced" && !photos[0].processedFile) {
+        setUploadStatus("Спочатку обробіть фото в обраному стилі.");
+        processButton.focus();
         return;
     }
     if (!anonymousCheckbox.checked && !nameInput.value.trim()) {
@@ -354,7 +412,7 @@ uploadForm.addEventListener("submit", async (event) => {
     data.append("comment", commentInput.value.trim());
     data.append("uploadMode", currentUploadMode);
     if (currentUploadMode === "advanced") data.append("photoStyle", uploadForm.elements.photoStyle.value);
-    photos.forEach((photo) => data.append("photos", photo.file));
+    photos.forEach((photo) => data.append("photos", photo.processedFile || photo.file));
     isUploading = true;
     syncBusyState();
     try {
@@ -384,7 +442,7 @@ uploadForm.addEventListener("submit", async (event) => {
     }
 });
 
-async function apiRequest(url, options = {}) {
+async function apiRequest(url, options = {}, imageResponse = false) {
     let response;
     try {
         response = await fetch(url, {
@@ -393,7 +451,15 @@ async function apiRequest(url, options = {}) {
             cache: "no-store",
         });
     } catch {
-        throw new Error("Немає зв’язку із сервером. Перевірте Wi-Fi та запуск альбому на MacBook.");
+        throw new Error(imageResponse
+            ? "Втрачено зв’язок із сервером. Результат не отримано; повторне натискання запустить нову обробку."
+            : "Немає зв’язку із сервером. Перевірте інтернет і спробуйте ще раз.");
+    }
+    if (response.ok && imageResponse) {
+        if (!response.headers.get("content-type")?.startsWith("image/")) {
+            throw new Error("Сервер не повернув оброблене фото.");
+        }
+        return response.blob();
     }
     const payload = await response.json().catch(() => null);
     if (!response.ok) {

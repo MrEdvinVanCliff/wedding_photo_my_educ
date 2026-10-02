@@ -23,3 +23,5 @@ services:
         sync: false
       - key: R2_BUCKET
         value: wedding-photos
+      - key: OPENAI_IMAGE_MODEL
+        value: gpt-image-2.5-sunburst

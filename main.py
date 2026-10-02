@@ -7,11 +7,12 @@ import os
 import shutil
 import sqlite3
 from tempfile import TemporaryDirectory
+from threading import BoundedSemaphore
 from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pillow_heif import register_heif_opener
@@ -112,6 +113,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         yield
 
     app = FastAPI(title="Весільний альбом", lifespan=lifespan)
+    edit_slot = BoundedSemaphore(1)
 
     @app.get("/healthz", include_in_schema=False)
     def health():
@@ -230,6 +232,28 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
             raise
         except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as error:
             raise HTTPException(422, "Не вдалося прочитати фото. Перевірте файл або виберіть інше зображення.") from error
+
+    @app.post("/api/photos/process")
+    def process_photo(photo: Annotated[UploadFile, File()], photoStyle: Annotated[str, Form()]):
+        from image_edit import STYLE_PROMPTS, edit_photo
+        try:
+            if photoStyle not in STYLE_PROMPTS:
+                raise HTTPException(422, "Невідомий стиль фото.")
+            if not os.environ.get("OPENAI_API_KEY", "").strip():
+                raise HTTPException(503, "Обробку фото ще не підключено. Адміністратор має додати ключ OpenAI на сервері.")
+            if not edit_slot.acquire(blocking=False):
+                raise HTTPException(429, "Зараз обробляється інше фото. Спробуйте за хвилину.")
+            try:
+                with TemporaryDirectory(prefix="process-", dir=data) as temporary:
+                    staging = Path(temporary)
+                    prepared = prepare_photo(photo, staging)
+                    # The orientation-corrected, metadata-free WebP also supports HEIC inputs.
+                    result = edit_photo(staging / prepared[2], photoStyle)
+                return Response(result, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+            finally:
+                edit_slot.release()
+        finally:
+            photo.file.close()
 
     @app.get("/api/posts")
     def get_posts(device_id: Annotated[UUID | None, Header(alias="X-Device-Id")] = None):
