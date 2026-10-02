@@ -223,6 +223,11 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
 
                 extension = FORMATS.get(source.format)
                 print("EXTENSION:", extension)
+                is_heif = source.format in {"HEIF", "HEIC"}
+                print("IS HEIF:", is_heif)
+                original_file = f"{photo_id}{'.jpg' if is_heif else extension}"
+                print("ORIGINAL FILE:", original_file)
+
                 if not extension:
                     raise HTTPException(422, "Підтримуються JPG, PNG, WebP, GIF, AVIF та HEIC/HEIF.")
                 if source.width * source.height > MAX_PIXELS:
