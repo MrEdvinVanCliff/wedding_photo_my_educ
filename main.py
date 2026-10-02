@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 import os
+import logging
 import shutil
 import sqlite3
 from tempfile import TemporaryDirectory
@@ -114,6 +115,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
 
     app = FastAPI(title="Весільний альбом", lifespan=lifespan)
     edit_slot = BoundedSemaphore(1)
+    decode_slot = BoundedSemaphore(1)
 
     @app.get("/healthz", include_in_schema=False)
     def health():
@@ -191,6 +193,12 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         } for row in rows]
 
     def prepare_photo(upload, staging):
+        # Large phone images must not be decoded concurrently on the free instance.
+        # Keep this separate from the HTTP limit so gallery reads can still proceed.
+        with decode_slot:
+            return decode_photo(upload, staging)
+
+    def decode_photo(upload, staging):
         photo_id = str(uuid4())
         raw_path = staging / f"{photo_id}.original"
         size = 0
@@ -270,9 +278,17 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
             try:
                 with TemporaryDirectory(prefix="process-", dir=data) as temporary:
                     staging = Path(temporary)
-                    prepared = prepare_photo(photo, staging)
+                    try:
+                        prepared = prepare_photo(photo, staging)
+                    except HTTPException as error:
+                        logging.getLogger(__name__).warning("Photo processing rejected at decode stage: status=%s", error.status_code)
+                        raise
                     # The orientation-corrected, metadata-free WebP also supports HEIC inputs.
-                    result = edit_photo(staging / prepared[2], photoStyle)
+                    try:
+                        result = edit_photo(staging / prepared[2], photoStyle)
+                    except HTTPException as error:
+                        logging.getLogger(__name__).warning("Photo processing failed at OpenAI stage: status=%s", error.status_code)
+                        raise
                 return Response(result, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
             finally:
                 edit_slot.release()
