@@ -202,6 +202,9 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         photo_id = str(uuid4())
         raw_path = staging / f"{photo_id}.original"
         size = 0
+        print("UPLOAD:", file.filename)
+        print("CONTENT TYPE:", file.content_type)
+        print("RAW PATH:", raw_path)
         with raw_path.open("wb") as target:
             while chunk := upload.file.read(64 * 1024):
                 size += len(chunk)
@@ -212,9 +215,7 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
             raise HTTPException(422, "Не можна завантажити порожній файл.")
 
         try:
-            print("UPLOAD:", file.filename)
-            print("CONTENT TYPE:", file.content_type)
-            print("RAW PATH:", raw_path)
+
             with Image.open(raw_path) as source:
                 extension = FORMATS.get(source.format)
                 print("EXTENSION:", extension)
@@ -434,10 +435,6 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
         app.mount("/uploads", StaticFiles(directory=uploads, check_dir=False), name="uploads")
     return app
 
-
-print("UPLOAD:", file.filename)
-print("CONTENT TYPE:", file.content_type)
-print("RAW PATH:", raw_path)
 
 
 
