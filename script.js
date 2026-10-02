@@ -1,5 +1,16 @@
 "use strict";
 
+// Dialog autofocus is useful for keyboards, but must not draw a ring after a tap.
+document.documentElement.dataset.inputModality = "pointer";
+window.addEventListener("pointerdown", () => {
+    document.documentElement.dataset.inputModality = "pointer";
+}, { capture: true, passive: true });
+window.addEventListener("keydown", (event) => {
+    if (["Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+        document.documentElement.dataset.inputModality = "keyboard";
+    }
+}, true);
+
 const modal = document.querySelector("#upload-modal");
 const openModalButton = document.querySelector("#open-upload-modal");
 const uploadForm = document.querySelector("#upload-form");

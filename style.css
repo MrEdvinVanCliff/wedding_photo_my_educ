@@ -988,3 +988,11 @@ body.upload-preview-open { position: fixed; width: 100%; overflow: hidden; }
     background: rgba(30, 30, 30, .85); font: 32px/1 Arial, sans-serif; cursor: pointer;
 }
 #upload-preview-status { position: absolute; bottom: max(16px, env(safe-area-inset-bottom)); text-align: center; }
+
+/* Preserve Tab focus rings, suppress automatic/touch focus decoration. */
+html[data-input-modality="pointer"] button:focus,
+html[data-input-modality="pointer"] a:focus,
+html[data-input-modality="pointer"] .upload-mode__input:focus-visible + label,
+html[data-input-modality="pointer"] .anonymous-switch__input:focus-visible + .anonymous-switch__control {
+    outline: none;
+}

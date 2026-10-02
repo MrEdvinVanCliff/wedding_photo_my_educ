@@ -54,6 +54,28 @@ class ImageEditTests(unittest.TestCase):
                 self.assertEqual(self.process().status_code, 503)
             edit.assert_not_called()
 
+    def test_heif_and_normalized_jpeg_reach_editor_as_webp(self):
+        raw = picture((90, 120), "HEIF")
+        normalized = self.client.post("/api/photos/normalize", files={
+            "photo": ("icloud.HEIF", raw, "application/octet-stream")})
+        self.assertEqual(normalized.status_code, 200)
+
+        def inspect_input(path, style):
+            with Image.open(path) as image:
+                self.assertEqual(image.format, "WEBP")
+                self.assertEqual(image.size, (90, 120))
+            return picture((90, 120), "JPEG")
+
+        with patch("image_edit.edit_photo", side_effect=inspect_input) as edit:
+            for name, content, mime in (("icloud.HEIF", raw, "image/heif"),
+                                        ("icloud.jpg", normalized.content, "image/jpeg")):
+                with self.subTest(filename=name):
+                    result = self.client.post("/api/photos/process", data={"photoStyle": "royal"},
+                                              files={"photo": (name, content, mime)})
+                    self.assertEqual(result.status_code, 200, result.text)
+                    self.assertEqual(result.headers["content-type"], "image/jpeg")
+            self.assertEqual(edit.call_count, 2)
+
     def test_failure_cleans_temporary_files_and_releases_slot(self):
         with patch("image_edit.edit_photo", side_effect=HTTPException(502, "unavailable")):
             self.assertEqual(self.process().status_code, 502)
