@@ -23,7 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent
 MAX_PHOTOS = 12
 MAX_FILE_BYTES = 10 * 1024 * 1024
 MAX_PIXELS = 50_000_000
-FORMATS = {"JPEG": ".jpg", "PNG": ".png", "WEBP": ".webp", "GIF": ".gif", "AVIF": ".avif", "HEIF": ".heic"}
+FORMATS = {"JPEG": ".jpg", "PNG": ".png", "WEBP": ".webp", "GIF": ".gif", "AVIF": ".avif", "HEIF": ".heic", "MPO": ".jpg"}
 register_heif_opener()
 
 
