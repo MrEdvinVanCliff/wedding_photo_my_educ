@@ -212,9 +212,12 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
             raise HTTPException(422, "Не можна завантажити порожній файл.")
 
         try:
+            print("UPLOAD:", file.filename)
+            print("CONTENT TYPE:", file.content_type)
+            print("RAW PATH:", raw_path)
             with Image.open(raw_path) as source:
-                is_heif = source.format == "HEIF"
                 extension = FORMATS.get(source.format)
+                print("EXTENSION:", extension)
                 if not extension:
                     raise HTTPException(422, "Підтримуються JPG, PNG, WebP, GIF, AVIF та HEIC/HEIF.")
                 if source.width * source.height > MAX_PIXELS:
@@ -430,6 +433,14 @@ def create_app(storage_dir: Path | None = None) -> FastAPI:
     if not cloud_mode:
         app.mount("/uploads", StaticFiles(directory=uploads, check_dir=False), name="uploads")
     return app
+
+
+print("UPLOAD:", file.filename)
+print("CONTENT TYPE:", file.content_type)
+print("RAW PATH:", raw_path)
+
+
+
 
 
 app = create_app()
